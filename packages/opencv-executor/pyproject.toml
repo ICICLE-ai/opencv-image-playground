@@ -1,0 +1,16 @@
+[project]
+name = "opencv-executor"
+version = "0.1.1"
+description = "Apply opencv-image-playground-gui exported pipelines to images, programmatically or in batch"
+requires-python = ">=3.11"
+dependencies = [
+  "opencv-python-headless>=4.9.0",
+  "numpy>=1.26.0",
+]
+
+[project.scripts]
+opencv-executor = "opencv_executor.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

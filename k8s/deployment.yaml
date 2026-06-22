@@ -1,0 +1,193 @@
+# opencv-image-playground — Kubernetes manifests for NRP Nautilus
+
+---
+# ── ConfigMap — app-standalone (React Router) ─────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cv-gui-app-config
+data:
+  NODE_ENV:         "production"
+  # Must match the public URL of the app ingress — no trailing slash
+  APP_BASE_URL:     "https://opencv-image-playground.sailab.nrp-nautilus.io"
+  # Points at the bridge service by its Kubernetes service name
+  BRIDGE_URL:       "http://cv-gui-bridge:8000"
+  # Tapis
+  TAPIS_BASE_URL:   "https://icicleai.tapis.io"
+  TAPIS_CLIENT_ID:  "opencv-image-playground"
+  TAPIS_SYSTEM_ID:  "pitzer-tapis"
+
+---
+# ── ConfigMap — python-bridge (FastAPI + OpenCV) ──────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cv-gui-bridge-config
+data:
+  PYTHONUNBUFFERED: "1"
+
+---
+# ── Secret ────────────────────────────────────────────────────────────────────
+# Generate APP_SECRET:  openssl rand -hex 32
+# Generate TAPIS values from your Tapis tenant
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cv-gui-secret
+type: Opaque
+stringData:
+  TAPIS_CLIENT_KEY: ""    # your Tapis client key (plain text — k8s encodes it)
+  APP_SECRET: ""    # openssl rand -hex 32
+
+---
+# ── Deployment — python-bridge ────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-gui-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cv-gui-bridge
+  template:
+    metadata:
+      labels:
+        app: cv-gui-bridge
+    spec:
+      containers:
+      - name: cv-gui-bridge
+        image: ghcr.io/icicle-ai/opencv-image-playground-bridge:v1.0.0
+        ports:
+        - containerPort: 8000
+          name: fastapi
+        envFrom:
+        - configMapRef:
+            name: cv-gui-bridge-config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+
+---
+# ── Service — python-bridge ───────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: cv-gui-bridge
+spec:
+  selector:
+    app: cv-gui-bridge
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# ── Deployment — app-standalone ───────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-gui-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cv-gui-app
+  template:
+    metadata:
+      labels:
+        app: cv-gui-app
+    spec:
+      containers:
+      - name: cv-gui-app
+        image: ghcr.io/icicle-ai/opencv-image-playground:v1.0.0
+        ports:
+        - containerPort: 3000
+          name: remix
+        envFrom:
+        - configMapRef:
+            name: cv-gui-app-config
+        - secretRef:
+            name: cv-gui-secret
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 40
+          periodSeconds: 30
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+
+---
+# ── Service — app-standalone ──────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: cv-gui-app
+spec:
+  selector:
+    app: cv-gui-app
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP
+
+---
+# ── Ingress — app-standalone ──────────────────────────────────────────────────
+# The app is the only public-facing service.
+# The bridge is internal — only reachable by the app via ClusterIP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cv-gui-app-ingress
+  annotations:
+    haproxy-ingress-proxy.timeout: "300s"
+    haproxy.router.openshift.io/timeout: "300s"
+    ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: haproxy
+  rules:
+  - host: opencv-image-playground.sailab.nrp-nautilus.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cv-gui-app
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - opencv-image-playground.sailab.nrp-nautilus.io

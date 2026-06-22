@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+
+  # ── Python bridge (FastAPI + OpenCV) ───────────────────────────────────────
+  bridge:
+    build:
+      context: ./packages/python-bridge
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── React Router app (Node.js) ─────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: apps/app-standalone/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - BRIDGE_URL=http://bridge:8000
+      # Tapis — optional, comment out if not using Tapis
+      - TAPIS_BASE_URL=${TAPIS_BASE_URL}
+      - TAPIS_CLIENT_ID=${TAPIS_CLIENT_ID}
+      - TAPIS_CLIENT_KEY=${TAPIS_CLIENT_KEY}
+      - APP_BASE_URL=${APP_BASE_URL}
+      - APP_SECRET=${APP_SECRET}
+      - TAPIS_SYSTEM_ID=${TAPIS_SYSTEM_ID}
+    depends_on:
+      bridge:
+        condition: service_healthy
+    restart: unless-stopped

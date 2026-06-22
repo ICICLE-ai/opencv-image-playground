@@ -1,0 +1,16 @@
+node_modules
+.turbo
+dist
+build
+.env
+__pycache__
+.venv
+.DS_Store
+vscode
+.idea
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.swn
