@@ -34,6 +34,23 @@ export const TAPIS_CONFIGURED = Boolean(
    TAPIS_BASE_URL && TAPIS_CLIENT_ID && TAPIS_CLIENT_KEY,
 );
 
+// ─── Jobs / app configuration ─────────────────────────────────────────────────
+// Defaults for the pre-processing Tapis app. Every value is overridable from the
+// submit form; these just pre-fill it.
+
+export const JOB_DEFAULTS = {
+   appId: process.env.TAPIS_APP_ID ?? "opencv-preprocess",
+   appVersion: process.env.TAPIS_APP_VERSION ?? "0.1.0",
+   // System that holds the input images / where the pipeline is uploaded.
+   sourceSystemId: process.env.TAPIS_SYSTEM_ID ?? "",
+   // Where the job runs and where results are archived. Fall back to the
+   // source system so a single-system setup works out of the box.
+   execSystemId:
+      process.env.TAPIS_EXEC_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
+   archiveSystemId:
+      process.env.TAPIS_ARCHIVE_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
+} as const;
+
 // The cookie name Tapis sets when a user is already logged in via another
 // Tapis application — we check this first before our own session
 const TAPIS_COOKIE_NAME = "X-Tapis-Token";
@@ -314,11 +331,21 @@ export async function getTapisToken(request: Request): Promise<string | null> {
 
 /**
  * Gets the logged-in username — shown in the header UI.
+ *
+ * If the user arrived with a raw X-Tapis-Token cookie (already authenticated via
+ * another Tapis app), there is no session, so we decode the username straight
+ * from that token. This is the identity half of "if the X-Tapis-Token cookie is
+ * present, skip our own login."
  */
 export async function getTapisUsername(
    request: Request,
 ): Promise<string | null> {
    const cookieHeader = request.headers.get("Cookie") ?? "";
+
+   // Prefer the raw Tapis cookie — same precedence as getTapisToken.
+   const rawToken = parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME);
+   if (rawToken) return usernameFromToken(rawToken);
+
    const session = await sessionStorage.getSession(cookieHeader);
    return session.get("username") ?? null;
 }
@@ -440,4 +467,204 @@ export async function downloadTapisFile(
    }
 
    return response.blob();
+}
+
+/**
+ * Uploads (inserts) a text file to a Tapis system path.
+ * Used to stage the exported operations.json pipeline so a job can reference it
+ * as a file input. `destPath` is the full destination path including filename.
+ */
+export async function uploadTapisTextFile(
+   token: string,
+   systemId: string,
+   destPath: string,
+   contents: string,
+   filename = "operations.json",
+): Promise<void> {
+   const cleanPath = destPath.startsWith("/") ? destPath : "/" + destPath;
+   const url = `${TAPIS_BASE_URL}/v3/files/ops/${systemId}${cleanPath}`;
+
+   const form = new FormData();
+   form.append("file", new Blob([contents], { type: "application/json" }), filename);
+
+   const response = await fetch(url, {
+      method: "POST",
+      headers: { "X-Tapis-Token": token },
+      body: form,
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis upload failed (${response.status}): ${text}`);
+   }
+}
+
+// ─── Tapis Jobs API ────────────────────────────────────────────────────────────
+// Docs: https://tapis-project.github.io/live-docs/?service=Jobs
+
+export interface TapisJob {
+   uuid: string;
+   name: string;
+   appId: string;
+   appVersion: string;
+   status: string;
+   created: string;
+   lastUpdated: string;
+   ended?: string;
+   remoteOutcome?: string;
+   execSystemId?: string;
+   archiveSystemId?: string;
+   archiveSystemDir?: string;
+}
+
+/** Input needed to build and submit a pre-processing job. */
+export interface SubmitJobInput {
+   name: string;
+   appId: string;
+   appVersion: string;
+   sourceSystemId: string;
+   inputDir: string;
+   outputDir: string;
+   execSystemId: string;
+   archiveSystemId: string;
+   nodeCount: number;
+   coresPerNode: number;
+   memoryMB: number;
+   maxMinutes: number;
+   imageExtensions?: string;
+   /** The exported pipeline JSON to stage as operations.json. */
+   pipelineJson: string;
+}
+
+/** Trim, and strip a single leading slash for use inside a tapis:// URL. */
+function normalizeDir(path: string): string {
+   const trimmed = path.trim();
+   return trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+/**
+ * Stages the pipeline to the input directory, then submits the Tapis job.
+ * Returns the created job's uuid.
+ */
+export async function submitTapisJob(
+   token: string,
+   input: SubmitJobInput,
+): Promise<string> {
+   const inputDir = normalizeDir(input.inputDir);
+   const outputDir = normalizeDir(input.outputDir);
+   const pipelinePath = `${inputDir}/operations.json`;
+
+   // 1. Stage the pipeline next to the images so a fileInput can reference it.
+   await uploadTapisTextFile(
+      token,
+      input.sourceSystemId,
+      pipelinePath,
+      input.pipelineJson,
+   );
+
+   // 2. Build the job request body (POST /v3/jobs/submit).
+   const envVariables = input.imageExtensions?.trim()
+      ? [{ key: "IMAGE_EXTENSIONS", value: input.imageExtensions.trim() }]
+      : [];
+
+   const body = {
+      name: input.name,
+      appId: input.appId,
+      appVersion: input.appVersion,
+      description: "Recursive OpenCV pre-processing from the Image Playground",
+      execSystemId: input.execSystemId,
+      archiveSystemId: input.archiveSystemId,
+      archiveSystemDir: `/${outputDir}`,
+      archiveOnAppError: true,
+      nodeCount: input.nodeCount,
+      coresPerNode: input.coresPerNode,
+      memoryMB: input.memoryMB,
+      maxMinutes: input.maxMinutes,
+      parameterSet: { envVariables },
+      fileInputs: [
+         {
+            name: "input-images",
+            sourceUrl: `tapis://${input.sourceSystemId}/${inputDir}`,
+            targetPath: "input",
+         },
+         {
+            name: "pipeline",
+            sourceUrl: `tapis://${input.sourceSystemId}/${pipelinePath}`,
+            targetPath: "operations.json",
+         },
+      ],
+   };
+
+   const response = await fetch(`${TAPIS_BASE_URL}/v3/jobs/submit`, {
+      method: "POST",
+      headers: {
+         "X-Tapis-Token": token,
+         "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis job submit failed (${response.status}): ${text}`);
+   }
+
+   const data = await response.json();
+   const uuid = data?.result?.uuid;
+   if (typeof uuid !== "string") {
+      throw new Error(`Job submitted but no uuid returned: ${JSON.stringify(data)}`);
+   }
+   return uuid;
+}
+
+/** Lists the caller's jobs, most-recently-created first. */
+export async function listTapisJobs(
+   token: string,
+   limit = 50,
+): Promise<TapisJob[]> {
+   const url =
+      `${TAPIS_BASE_URL}/v3/jobs/list` +
+      `?limit=${limit}&orderBy=created(desc)&computeTotal=false`;
+
+   const response = await fetch(url, {
+      headers: { "X-Tapis-Token": token, "Content-Type": "application/json" },
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis jobs list failed (${response.status}): ${text}`);
+   }
+
+   const data = await response.json();
+   return (data?.result ?? []).map(toTapisJob);
+}
+
+/** Cancels a running/queued job. */
+export async function cancelTapisJob(token: string, uuid: string): Promise<void> {
+   const response = await fetch(`${TAPIS_BASE_URL}/v3/jobs/${uuid}/cancel`, {
+      method: "POST",
+      headers: { "X-Tapis-Token": token, "Content-Type": "application/json" },
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis job cancel failed (${response.status}): ${text}`);
+   }
+}
+
+function toTapisJob(j: Record<string, unknown>): TapisJob {
+   return {
+      uuid: String(j.uuid ?? ""),
+      name: String(j.name ?? ""),
+      appId: String(j.appId ?? ""),
+      appVersion: String(j.appVersion ?? ""),
+      status: String(j.status ?? "UNKNOWN"),
+      created: String(j.created ?? ""),
+      lastUpdated: String(j.lastUpdated ?? ""),
+      ended: j.ended ? String(j.ended) : undefined,
+      remoteOutcome: j.remoteOutcome ? String(j.remoteOutcome) : undefined,
+      execSystemId: j.execSystemId ? String(j.execSystemId) : undefined,
+      archiveSystemId: j.archiveSystemId ? String(j.archiveSystemId) : undefined,
+      archiveSystemDir: j.archiveSystemDir ? String(j.archiveSystemDir) : undefined,
+   };
 }

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Group, Text, ActionIcon, Tooltip } from "@mantine/core";
-import { IconLogout, IconLogin } from "@tabler/icons-react";
-import { useLoaderData, Form } from "react-router";
+import { IconLogout, IconLogin, IconServer2 } from "@tabler/icons-react";
+import { useLoaderData, Form, Link } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import {
   ImagePlayground,
@@ -9,6 +9,7 @@ import {
   type FileSource,
 } from "@opencv-image-playground/playground";
 import { useTapisFileSource } from "~/contexts/TapisFileSource";
+import { saveStoredPipeline } from "~/lib/pipelineStorage";
 import {
   getTapisToken,
   getTapisUsername,
@@ -64,6 +65,11 @@ export default function Index() {
     ? hasTapisAuth
       ? (
         <Group gap={4}>
+          <Tooltip label="Tapis batch jobs">
+            <ActionIcon variant="subtle" component={Link} to="/jobs">
+              <IconServer2 size={16} />
+            </ActionIcon>
+          </Tooltip>
           {tapisUsername && <Text size="xs" c="dimmed">{tapisUsername}</Text>}
           <Form method="post" action="/auth/logout">
             <Tooltip label="Sign out of Tapis">
@@ -88,5 +94,11 @@ export default function Index() {
       )
     : null;
 
-  return <ImagePlayground fileSources={fileSources} headerActions={headerActions} />;
+  return (
+    <ImagePlayground
+      fileSources={fileSources}
+      headerActions={headerActions}
+      onPipelineChange={saveStoredPipeline}
+    />
+  );
 }
