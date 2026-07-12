@@ -1,0 +1,71 @@
+{
+  "id": "opencv-preprocess",
+  "version": "0.1.0",
+  "description": "Recursively apply an OpenCV Image Playground pipeline (operations.json) to every image in a directory tree.",
+  "runtime": "SINGULARITY",
+  "runtimeOptions": ["SINGULARITY_RUN"],
+  "containerImage": "REPLACE_ME/preprocess.sif",
+  "jobType": "BATCH",
+  "maxJobs": -1,
+  "maxJobsPerUser": -1,
+  "strictFileInputs": false,
+  "jobAttributes": {
+    "description": "OpenCV recursive pre-processing job",
+    "dynamicExecSystem": false,
+    "execSystemId": "REPLACE_ME_EXEC_SYSTEM",
+    "execSystemExecDir": "${JobWorkingDir}",
+    "execSystemInputDir": "${JobWorkingDir}",
+    "execSystemOutputDir": "${JobWorkingDir}/output",
+    "archiveSystemId": "REPLACE_ME_ARCHIVE_SYSTEM",
+    "archiveSystemDir": "${JobWorkingDir}/output",
+    "archiveOnAppError": true,
+    "nodeCount": 1,
+    "coresPerNode": 1,
+    "memoryMB": 4096,
+    "maxMinutes": 120,
+    "fileInputs": [
+      {
+        "name": "input-images",
+        "description": "Directory of images to pre-process (recursed). Set sourceUrl at submit time.",
+        "inputMode": "REQUIRED",
+        "autoMountLocal": true,
+        "sourceUrl": null,
+        "targetPath": "input"
+      },
+      {
+        "name": "pipeline",
+        "description": "Exported operations.json pipeline. Set sourceUrl at submit time.",
+        "inputMode": "REQUIRED",
+        "autoMountLocal": true,
+        "sourceUrl": null,
+        "targetPath": "operations.json"
+      }
+    ],
+    "parameterSet": {
+      "appArgs": [
+        { "name": "input-dir",  "arg": "--input input",             "inputMode": "FIXED" },
+        { "name": "output-dir", "arg": "--output output",           "inputMode": "FIXED" },
+        { "name": "pipeline",   "arg": "--pipeline operations.json", "inputMode": "FIXED" }
+      ],
+      "envVariables": [
+        {
+          "key": "IMAGE_EXTENSIONS",
+          "value": ".jpg,.jpeg,.png,.bmp,.tiff,.tif",
+          "description": "Comma-separated image extensions to process.",
+          "inputMode": "INCLUDE_ON_DEMAND"
+        }
+      ],
+      "schedulerOptions": [],
+      "archiveFilter": {
+        "includes": [],
+        "excludes": [],
+        "includeLaunchFiles": false
+      }
+    }
+  },
+  "_notes": [
+    "Replace containerImage with the tapis:// or absolute path to preprocess.sif staged on the exec system.",
+    "Replace REPLACE_ME_EXEC_SYSTEM / REPLACE_ME_ARCHIVE_SYSTEM with your Tapis system IDs.",
+    "At submit time the standalone app sets fileInputs[].sourceUrl (input dir + pipeline) and archiveSystemDir (the user's chosen output directory)."
+  ]
+}

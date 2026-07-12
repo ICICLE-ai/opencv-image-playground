@@ -1,20 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import {
-  Box, Center, Group, Image, Loader,
+  Box, Center, Group, Loader,
   Stack, Text, Button, Overlay,
   Tooltip,
   ActionIcon,
 } from "@mantine/core";
 import { IconUpload, IconPhoto, IconZoomIn, IconZoomReset, IconZoomOut, IconArrowsMinimize, IconArrowsMaximize } from "@tabler/icons-react";
-import { useFileSource } from "~/contexts/FileSourceContext";
-import { set } from "zod/v4";
-
-interface StepResult {
-  id: string;
-  ok: boolean;
-  image_b64: string | null;
-  error: string | null;
-}
+import { useFileSource } from "../../contexts/FileSourceContext";
 
 interface Props {
   originalUrl: string | null;
@@ -34,7 +26,7 @@ interface ZoomState {
 
 const MIN_SCALE = 1;
 const MAX_SCLAE = 8;
-const ZOOM_STEP = 0.4;
+const ZOOM_STEP = 0.05;
 
 export function ImageCanvas({
   originalUrl,
@@ -57,11 +49,11 @@ export function ImageCanvas({
     setZoom({ scale: 1, x: 0, y: 0 });
   };
 
-  const zoomIn = () => 
+  const zoomIn = () =>
     setZoom((z) => ({ ...z, scale: Math.min(MAX_SCLAE, z.scale + ZOOM_STEP)}));
 
-  const zoomOut = () => 
-    setZoom((z) => ({ 
+  const zoomOut = () =>
+    setZoom((z) => ({
         scale: Math.max(MIN_SCALE, z.scale - ZOOM_STEP),
         //Reset pan when zooming back to 1
         x: z.scale - ZOOM_STEP <= MIN_SCALE ? 0 : z.x,
@@ -91,13 +83,13 @@ export function ImageCanvas({
   const onMouseUp = useCallback(() => {
     isPanning.current  = false;
   }, []);
-  
+
   // --------------------------------------------
 
   // -------- Scroll to zoom -------------------
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    const delta = e.deltaY > 0 ? -0.005 : 0.005;
     setZoom((z) => {
         const next = Math.min(MAX_SCLAE, Math.max(MIN_SCALE, z.scale + delta));
         return {
@@ -112,7 +104,7 @@ export function ImageCanvas({
   // ---- Image style (shared between both panels) ---------------
 
   const imgStyle: React.CSSProperties = {
-    transform: `scale(${zoom.scale} translate(${zoom.x / zoom.scale}px, ${zoom.y / zoom.scale}px))`,
+    transform: `scale(${zoom.scale}) translate(${zoom.x / zoom.scale}px, ${zoom.y / zoom.scale}px)`,
     transformOrigin: "center center",
     transition: isPanning.current ? "none" : "transform 0.1s ease",
     cursor: zoom.scale > 1 ? "grab" : "default",
@@ -155,8 +147,8 @@ export function ImageCanvas({
   const showProcessed = expanded === "both" || expanded === "processed";
 
   return (
-    <Box 
-        h="100%" 
+    <Box
+        h="100%"
         style={{ display: "flex", flexDirection: "column" }}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}

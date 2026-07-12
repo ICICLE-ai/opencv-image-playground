@@ -4,6 +4,7 @@ services:
 
   # ── Python bridge (FastAPI + OpenCV) ───────────────────────────────────────
   bridge:
+    platform: linux/amd64
     build:
       context: ./packages/python-bridge
       dockerfile: Dockerfile
@@ -21,6 +22,7 @@ services:
 
   # ── React Router app (Node.js) ─────────────────────────────────────────────
   app:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/app-standalone/Dockerfile

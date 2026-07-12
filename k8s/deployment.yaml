@@ -36,8 +36,8 @@ metadata:
   name: cv-gui-secret
 type: Opaque
 stringData:
-  TAPIS_CLIENT_KEY: ""    # your Tapis client key (plain text — k8s encodes it)
-  APP_SECRET: ""    # openssl rand -hex 32
+  TAPIS_CLIENT_KEY: "9xF0C9Facv7uH4AzCrJK"    # your Tapis client key (plain text — k8s encodes it)
+  APP_SECRET: "40d7a1342529ca7ab1f0ad34b1712df090fab5a3075a1102b3e60cb4e15e1ced"    # openssl rand -hex 32
 
 ---
 # ── Deployment — python-bridge ────────────────────────────────────────────────
@@ -118,7 +118,7 @@ spec:
     spec:
       containers:
       - name: cv-gui-app
-        image: ghcr.io/icicle-ai/opencv-image-playground:v1.0.0
+        image: ghcr.io/icicle-ai/opencv-image-playground:v1.0.1
         ports:
         - containerPort: 3000
           name: remix

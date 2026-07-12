@@ -14,7 +14,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { usePipeline } from "~/contexts/PipelineContext";
+import { usePipeline } from "../../contexts/PipelineContext";
 import { PipelineStepCard } from "./PipelineStepCard";
 
 interface StepResult {

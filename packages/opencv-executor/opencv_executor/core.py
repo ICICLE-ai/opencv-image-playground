@@ -125,3 +125,55 @@ def batch_run(
         "failed": len(failed),
         "failed_details": failed,
     }
+
+
+def batch_run_recursive(
+    input_dir: str | Path,
+    output_dir: str | Path,
+    pipeline: dict[str, Any],
+    extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"),
+    on_progress: callable | None = None,
+) -> dict[str, Any]:
+    """
+    Apply a pipeline to every image found anywhere under input_dir — walking
+    all nested subdirectories — writing each result to the mirrored location
+    under output_dir (the input directory tree is preserved).
+
+    Unlike batch_run (which only looks at the top level of input_dir), this
+    recurses into every subfolder. Returns a summary dict with counts of
+    succeeded/failed files and per-file error details, where each entry's
+    'file' is the path relative to input_dir.
+
+    on_progress, if provided, is called as on_progress(current_index, total,
+    relative_path) after each file — useful for logging or a progress bar.
+    """
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    files = sorted(
+        f for f in input_dir.rglob("*")
+        if f.is_file() and f.suffix.lower() in extensions
+    )
+
+    succeeded: list[str] = []
+    failed: list[dict[str, str]] = []
+
+    for i, file in enumerate(files):
+        rel = file.relative_to(input_dir)
+        output_path = output_dir / rel
+        try:
+            process_file(file, output_path, pipeline)
+            succeeded.append(str(rel))
+        except PipelineError as e:
+            failed.append({"file": str(rel), "error": str(e)})
+
+        if on_progress:
+            on_progress(i + 1, len(files), str(rel))
+
+    return {
+        "total": len(files),
+        "succeeded": len(succeeded),
+        "failed": len(failed),
+        "failed_details": failed,
+    }

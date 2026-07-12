@@ -11,8 +11,8 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { OP_REGISTRY , type PipelineStep} from "@opencv-image-playground/core";
-import { usePipeline } from "~/contexts/PipelineContext";
-import { ParamEditor } from "~/components/params/ParamEditor";
+import { usePipeline } from "../../contexts/PipelineContext";
+import { ParamEditor } from "../params/ParamEditor";
 
 interface StepResult {
   id: string;

@@ -389,7 +389,7 @@ export async function listTapisFiles(
    path = "/",
 ): Promise<TapisFile[]> {
    // Strip leading slash from path — Tapis adds it between systemId and path
-   const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+   const cleanPath = path.startsWith("/") ? path : "/" + path;
    const url = `${TAPIS_BASE_URL}/v3/files/ops/${systemId}/${cleanPath}`;
 
    console.log("Listing Tapis files:", url); // temporary
@@ -421,8 +421,8 @@ export async function downloadTapisFile(
    systemId: string,
    path: string,
 ): Promise<Blob> {
-   // returns the file contents directly
-   const url = `${TAPIS_BASE_URL}/v3/files/ops/${systemId}${path}`;
+   const cleanPath = path.startsWith("/") ? path : "/" + path;
+   const url = `${TAPIS_BASE_URL}/v3/files/content/${systemId}/${cleanPath}`;
 
    console.log("Downloading from Tapis:", url); // temporary — remove after confirming
 

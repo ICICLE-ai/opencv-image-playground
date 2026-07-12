@@ -1,8 +1,6 @@
-import { Slider, Switch, Select, Stack, Text, Group, NumberInput } from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
-import { useEffect } from "react";
+import { Slider, Switch, Select, Stack, Text, Group } from "@mantine/core";
 import type { PipelineStep, OpDef, ParamDef, ParamValue } from "@opencv-image-playground/core";
-import { usePipeline } from "~/contexts/PipelineContext";
+import { usePipeline } from "../../contexts/PipelineContext";
 
 interface Props {
   step: PipelineStep;

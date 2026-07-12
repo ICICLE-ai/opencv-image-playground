@@ -1,0 +1,78 @@
+Bootstrap: docker
+From: python:3.12-slim
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenCV Image Playground — Tapis pre-processing container
+#
+# A native Apptainer/Singularity image that bundles the `opencv_executor`
+# library and the recursive `preprocess.py` entrypoint, so a Tapis job can apply
+# an exported pipeline to a whole directory tree of images.
+#
+# BUILD (run from the repository root so the %files paths resolve):
+#
+#     apptainer build preprocess.sif packages/tapis-job/Singularity.def
+#
+# RUN locally to smoke-test:
+#
+#     apptainer run \
+#       --bind /data/in:/in --bind /data/out:/out --bind $PWD/operations.json:/pipeline.json \
+#       preprocess.sif --input /in --output /out --pipeline /pipeline.json
+#
+# Stage the resulting preprocess.sif onto the Tapis execution system and point
+# the Tapis app's containerImage at it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+%files
+    # Paths are relative to the build context (the repo root — see BUILD above).
+    packages/opencv-executor /opt/build/opencv-executor
+    packages/tapis-job/preprocess.py /opt/app/preprocess.py
+
+%post
+    set -eu
+
+    # opencv-python-headless still needs a couple of shared libs at runtime.
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libgomp1
+    rm -rf /var/lib/apt/lists/*
+
+    python -m pip install --no-cache-dir --upgrade pip
+
+    # Install the library from the copied local source, then discard the source.
+    python -m pip install --no-cache-dir /opt/build/opencv-executor
+    rm -rf /opt/build
+
+    chmod +x /opt/app/preprocess.py
+
+%environment
+    export PYTHONUNBUFFERED=1
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+# `apptainer run preprocess.sif ...` executes the entrypoint; any extra args
+# (e.g. --input/--output/--pipeline) are forwarded to it.
+%runscript
+    exec python /opt/app/preprocess.py "$@"
+
+# `apptainer exec preprocess.sif preprocess ...` also works.
+%apprun preprocess
+    exec python /opt/app/preprocess.py "$@"
+
+%labels
+    Maintainer  OpenCV Image Playground
+    Description Recursive OpenCV pipeline pre-processing for Tapis jobs
+
+%help
+    Applies an exported OpenCV Image Playground pipeline (operations.json) to
+    every image in every subdirectory of an input directory, mirroring the tree
+    into an output directory.
+
+    Usage:
+        apptainer run preprocess.sif \
+            --input  <INPUT_DIR> \
+            --output <OUTPUT_DIR> \
+            --pipeline <operations.json>
+
+    Values may also be supplied via the environment variables INPUT_DIR,
+    OUTPUT_DIR, PIPELINE_FILE and IMAGE_EXTENSIONS.

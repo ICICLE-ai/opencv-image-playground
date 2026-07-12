@@ -8,6 +8,10 @@ export interface FileSource {
     id: string;
     label: string;
     pickFile: () => Promise<File | null>;
+    // Optional UI (e.g. a file-browser modal) that must be mounted while this
+    // source is active. ImagePlayground renders the active source's overlay so
+    // hosts can bundle a picker with its source instead of wiring it separately.
+    overlay?: ReactNode;
 }
 
 export interface RemoteFile {
@@ -24,7 +28,7 @@ export interface RemoteFile {
 export const localFileSource: FileSource = {
     id: "local",
     label: "Local file system",
-    pickFile: async () => 
+    pickFile: async () =>
         new Promise((resolve) => {
             const input = document.createElement("input");
             input.type = "file";
@@ -39,7 +43,7 @@ export const localFileSource: FileSource = {
 
 const FileSourceContext = createContext<FileSource | null>(null);
 export function FileSourceProvider({
-    source, 
+    source,
     children,
 }: {
     source: FileSource;

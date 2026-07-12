@@ -1,3 +1,8 @@
+# DEPRECATED for the interactive editor: the web app now runs OpenCV in the
+# browser via opencv.js (packages/playground/src/lib/opencv). This FastAPI
+# bridge is kept for CLI/batch/server-side processing and is no longer called
+# by apps/app-standalone.
+
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn

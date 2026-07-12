@@ -1,0 +1,36 @@
+{
+  "name": "opencv-preprocess-${DATE}",
+  "appId": "opencv-preprocess",
+  "appVersion": "0.1.0",
+  "description": "Recursive OpenCV pre-processing submitted from the Image Playground",
+  "execSystemId": "REPLACE_ME_EXEC_SYSTEM",
+  "archiveSystemId": "REPLACE_ME_ARCHIVE_SYSTEM",
+  "archiveSystemDir": "REPLACE_ME_OUTPUT_DIRECTORY",
+  "archiveOnAppError": true,
+  "nodeCount": 1,
+  "coresPerNode": 1,
+  "memoryMB": 4096,
+  "maxMinutes": 120,
+  "parameterSet": {
+    "envVariables": [
+      { "key": "IMAGE_EXTENSIONS", "value": ".jpg,.jpeg,.png,.bmp,.tiff,.tif" }
+    ]
+  },
+  "fileInputs": [
+    {
+      "name": "input-images",
+      "sourceUrl": "tapis://REPLACE_ME_SOURCE_SYSTEM/REPLACE_ME_INPUT_DIRECTORY",
+      "targetPath": "input"
+    },
+    {
+      "name": "pipeline",
+      "sourceUrl": "tapis://REPLACE_ME_SOURCE_SYSTEM/REPLACE_ME_PIPELINE_PATH/operations.json",
+      "targetPath": "operations.json"
+    }
+  ],
+  "_notes": [
+    "This is the body POSTed to POST /v3/jobs/submit (docs: https://tapis-project.github.io/live-docs/?service=Jobs).",
+    "The standalone app fills the REPLACE_ME_* placeholders from the form: input directory, output directory, source/exec/archive systems, and compute parameters (nodeCount, coresPerNode, memoryMB, maxMinutes).",
+    "archiveSystemDir is where processed images land — the 'output directory on the selected Tapis system'."
+  ]
+}

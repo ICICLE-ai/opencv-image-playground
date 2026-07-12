@@ -1,7 +1,6 @@
 import { ScrollArea, Text, Stack, Button, Accordion } from "@mantine/core";
 import { OP_CATEGORIES, getOpsByCategory } from "@opencv-image-playground/core";
-import { use } from "react";
-import { usePipeline } from "~/contexts/PipelineContext";
+import { usePipeline } from "../../contexts/PipelineContext";
 
 const CATEGORY_LABELS: Record<string, string> = {
     filter: "Filter",
@@ -39,13 +38,13 @@ export function OpPanel() {
                             <Accordion.Panel>
                                 <Stack gap={4}>
                                     {ops.map(([key, def]) => (
-                                        <Button 
+                                        <Button
                                             key={key}
                                             variant="subtle"
                                             size="xs"
                                             justify="start"
                                             fullWidth
-                                            title="descriptixon"
+                                            title={def.description}
                                             onClick={() => addStep(key)}
                                         >
                                             {def.name}

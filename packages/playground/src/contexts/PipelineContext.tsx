@@ -3,6 +3,8 @@ import {
   useContext,
   useReducer,
   useCallback,
+  useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { nanoid } from "nanoid";
@@ -151,12 +153,30 @@ const PipelineContext = createContext<PipelineContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-export function PipelineProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, {
-    pipeline: createPipeline(),
+export function PipelineProvider({
+  children,
+  initialPipeline,
+  onChange,
+}: {
+  children: ReactNode;
+  initialPipeline?: Pipeline;
+  onChange?: (pipeline: Pipeline) => void;
+}) {
+  const [state, dispatch] = useReducer(reducer, undefined, () => ({
+    pipeline: initialPipeline ?? createPipeline(),
     selectedStepId: null,
     isDirty: false,
-  });
+  }));
+
+  // Notify the host whenever the pipeline itself changes (skip the first render).
+  const isFirst = useRef(true);
+  useEffect(() => {
+    if (isFirst.current) {
+      isFirst.current = false;
+      return;
+    }
+    onChange?.(state.pipeline);
+  }, [state.pipeline, onChange]);
 
   const addStep      = useCallback((op: string) => dispatch({ type: "ADD_STEP", op }), []);
   const removeStep   = useCallback((id: string) => dispatch({ type: "REMOVE_STEP", id }), []);

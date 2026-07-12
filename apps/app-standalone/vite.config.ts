@@ -9,5 +9,6 @@ export default defineConfig({
   },
   server:{
     port: 5176,
+    allowedHosts: ["sensation-guidable-preaching.ngrok-free.dev"],
   }
 });
