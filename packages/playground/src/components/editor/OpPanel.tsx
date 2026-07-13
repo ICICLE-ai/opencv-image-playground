@@ -1,15 +1,8 @@
-import { ScrollArea, Text, Stack, Button, Accordion } from "@mantine/core";
+import { ScrollArea, Text, Stack, Button, Accordion, Group, ThemeIcon } from "@mantine/core";
+import { IconPlus } from "@tabler/icons-react";
 import { OP_CATEGORIES, getOpsByCategory } from "@opencv-image-playground/core";
 import { usePipeline } from "../../contexts/PipelineContext";
-
-const CATEGORY_LABELS: Record<string, string> = {
-    filter: "Filter",
-    edge: "Edge detection",
-    threshold: "Thresholding",
-    morphology: "Morphology",
-    color: "Color space",
-    geometry: "Geometric transform"
-}
+import { categoryMeta } from "../../lib/categoryMeta";
 
 export function OpPanel() {
     const { addStep } = usePipeline();
@@ -23,29 +16,40 @@ export function OpPanel() {
                 multiple
                 defaultValue={["filter", "edge"]}
                 variant="separated"
-                radius="sm"
+                radius="md"
             >
                 {OP_CATEGORIES.map((category) => {
                     const ops = getOpsByCategory(category);
                     if (ops.length === 0) return null;
+                    const meta = categoryMeta(category);
+                    const Icon = meta.icon;
                     return (
                         <Accordion.Item value={category} key={category}>
                             <Accordion.Control>
-                                <Text size="sm" fw={500}>
-                                    {CATEGORY_LABELS[category] || category}
-                                </Text>
+                                <Group gap="xs">
+                                    <ThemeIcon variant="light" color={meta.color} size="sm" radius="md">
+                                        <Icon size={14} />
+                                    </ThemeIcon>
+                                    <Text size="sm" fw={600}>
+                                        {meta.label}
+                                    </Text>
+                                    <Text size="xs" c="dimmed">{ops.length}</Text>
+                                </Group>
                             </Accordion.Control>
                             <Accordion.Panel>
-                                <Stack gap={4}>
+                                <Stack gap={2}>
                                     {ops.map(([key, def]) => (
                                         <Button
                                             key={key}
                                             variant="subtle"
+                                            color="gray"
                                             size="xs"
                                             justify="start"
                                             fullWidth
                                             title={def.description}
+                                            leftSection={<IconPlus size={12} />}
                                             onClick={() => addStep(key)}
+                                            styles={{ label: { fontWeight: 500 } }}
                                         >
                                             {def.name}
                                         </Button>

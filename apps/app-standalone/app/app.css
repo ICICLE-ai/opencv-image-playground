@@ -9,7 +9,34 @@ html,
 body {
   @apply bg-white dark:bg-gray-950;
 
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
   }
+}
+
+/* Slim, unobtrusive scrollbars that match the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mantine-color-gray-4) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--mantine-color-gray-4);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+:root[data-mantine-color-scheme="dark"] * {
+  scrollbar-color: var(--mantine-color-dark-3) transparent;
+}
+:root[data-mantine-color-scheme="dark"] *::-webkit-scrollbar-thumb {
+  background-color: var(--mantine-color-dark-3);
 }

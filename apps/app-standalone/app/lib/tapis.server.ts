@@ -38,6 +38,15 @@ export const TAPIS_CONFIGURED = Boolean(
 // Defaults for the pre-processing Tapis app. Every value is overridable from the
 // submit form; these just pre-fill it.
 
+// Selectable Tapis systems, overridable via TAPIS_SYSTEMS (comma-separated).
+const DEFAULT_SYSTEMS = [
+   "pitzer-tapis",
+   "expanse-tapis",
+   "expanse-tapis-static",
+   "cardinal-tapis",
+   "ascend-tapis",
+];
+
 export const JOB_DEFAULTS = {
    appId: process.env.TAPIS_APP_ID ?? "opencv-preprocess",
    appVersion: process.env.TAPIS_APP_VERSION ?? "0.1.0",
@@ -49,6 +58,12 @@ export const JOB_DEFAULTS = {
       process.env.TAPIS_EXEC_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
    archiveSystemId:
       process.env.TAPIS_ARCHIVE_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
+   // Default SLURM allocation account for scheduler options.
+   slurmAccount: process.env.SLURM_ACCOUNT ?? "",
+   // Systems offered in the submit-form dropdowns.
+   systems: (process.env.TAPIS_SYSTEMS
+      ? process.env.TAPIS_SYSTEMS.split(",").map((s) => s.trim()).filter(Boolean)
+      : DEFAULT_SYSTEMS),
 } as const;
 
 // The cookie name Tapis sets when a user is already logged in via another
@@ -532,6 +547,8 @@ export interface SubmitJobInput {
    memoryMB: number;
    maxMinutes: number;
    imageExtensions?: string;
+   /** SLURM allocation account, passed as a scheduler option (--account=...). */
+   allocationAccount?: string;
    /** The exported pipeline JSON to stage as operations.json. */
    pipelineJson: string;
 }
@@ -567,6 +584,11 @@ export async function submitTapisJob(
       ? [{ key: "IMAGE_EXTENSIONS", value: input.imageExtensions.trim() }]
       : [];
 
+   // SLURM allocation → batch scheduler directive (-A <account>).
+   const schedulerOptions = input.allocationAccount?.trim()
+      ? [{ name: "slurm account", arg: `-A ${input.allocationAccount.trim()}` }]
+      : [];
+
    const body = {
       name: input.name,
       appId: input.appId,
@@ -574,13 +596,16 @@ export async function submitTapisJob(
       description: "Recursive OpenCV pre-processing from the Image Playground",
       execSystemId: input.execSystemId,
       archiveSystemId: input.archiveSystemId,
-      archiveSystemDir: `/${outputDir}`,
+      archiveSystemDir: `${outputDir}`,
       archiveOnAppError: true,
       nodeCount: input.nodeCount,
       coresPerNode: input.coresPerNode,
       memoryMB: input.memoryMB,
       maxMinutes: input.maxMinutes,
-      parameterSet: { envVariables },
+      parameterSet: { envVariables, schedulerOptions },
+      execSystemExecDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}",
+      execSystemInputDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}",
+      execSystemOutputDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}/output",
       fileInputs: [
          {
             name: "input-images",

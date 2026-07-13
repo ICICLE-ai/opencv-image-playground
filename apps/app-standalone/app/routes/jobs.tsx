@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   Container, Title, Text, Paper, Grid, TextInput, NumberInput, Button,
   Table, Badge, Group, Stack, Alert, Code, Anchor, Divider, Tooltip,
-  ActionIcon, ScrollArea,
+  ActionIcon, ScrollArea, Select, ThemeIcon, Center,
 } from "@mantine/core";
 import {
   IconArrowLeft, IconRefresh, IconX, IconAlertCircle, IconCheck,
+  IconServer2, IconRocket, IconInbox,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import {
@@ -36,7 +37,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   let jobs: TapisJob[] = [];
   let jobsError: string | null = null;
   try {
-    jobs = await listTapisJobs(token);
+    // Only show pre-processing jobs from our app.
+    jobs = (await listTapisJobs(token)).filter(
+      (j) => j.appId === JOB_DEFAULTS.appId,
+    );
   } catch (err) {
     jobsError = String(err);
   }
@@ -81,8 +85,9 @@ export async function action({ request }: ActionFunctionArgs) {
     try {
       const uuid = await submitTapisJob(token, {
         name: String(form.get("name") || `opencv-preprocess-${Date.now()}`),
-        appId: String(form.get("appId") || JOB_DEFAULTS.appId),
-        appVersion: String(form.get("appVersion") || JOB_DEFAULTS.appVersion),
+        // appId/appVersion are fixed server-side, not user-editable.
+        appId: JOB_DEFAULTS.appId,
+        appVersion: JOB_DEFAULTS.appVersion,
         sourceSystemId: String(form.get("sourceSystemId") ?? ""),
         inputDir: String(form.get("inputDir") ?? ""),
         outputDir: String(form.get("outputDir") ?? ""),
@@ -93,6 +98,7 @@ export async function action({ request }: ActionFunctionArgs) {
         memoryMB: num("memoryMB", 4096),
         maxMinutes: num("maxMinutes", 120),
         imageExtensions: String(form.get("imageExtensions") ?? ""),
+        allocationAccount: String(form.get("allocationAccount") ?? ""),
         pipelineJson,
       });
       return data({ ok: true, message: `Job submitted: ${uuid}` });
@@ -171,19 +177,32 @@ export default function JobsPage() {
   }, [hasActive, revalidator]);
 
   return (
-    <Container size="lg" py="lg">
-      <Group justify="space-between" mb="md">
-        <Group gap="xs">
-          <ActionIcon variant="subtle" component={Link} to="/" aria-label="Back to editor">
-            <IconArrowLeft size={18} />
-          </ActionIcon>
-          <Title order={3}>Tapis batch jobs</Title>
+    <Container size="lg" py="xl">
+      <Group justify="space-between" align="center" mb="xl" wrap="nowrap">
+        <Group gap="sm" align="center" wrap="nowrap">
+          <Tooltip label="Back to editor">
+            <ActionIcon variant="subtle" size="lg" color="gray" component={Link} to="/" aria-label="Back to editor">
+              <IconArrowLeft size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <ThemeIcon size={42} radius="md" variant="light" color="indigo">
+            <IconServer2 size={22} />
+          </ThemeIcon>
+          <div>
+            <Title order={3}>Tapis batch jobs</Title>
+            <Text size="sm" c="dimmed">
+              Submit and monitor recursive OpenCV pre-processing jobs
+            </Text>
+          </div>
         </Group>
-        <Group gap="xs">
-          {username && <Text size="sm" c="dimmed">{username}</Text>}
+        <Group gap="xs" wrap="nowrap">
+          {username && (
+            <Badge variant="light" color="gray" size="lg" radius="sm">{username}</Badge>
+          )}
           <Tooltip label="Refresh">
             <ActionIcon
-              variant="subtle"
+              variant="light"
+              size="lg"
               onClick={() => revalidator.revalidate()}
               loading={revalidator.state === "loading"}
             >
@@ -194,8 +213,13 @@ export default function JobsPage() {
       </Group>
 
       {/* ── Submit form ── */}
-      <Paper withBorder p="md" radius="md" mb="lg">
-        <Title order={5} mb="xs">Submit pre-processing job</Title>
+      <Paper withBorder p="lg" radius="md" mb="xl">
+        <Group gap="xs" mb="md">
+          <ThemeIcon variant="light" size="md" radius="md" color="indigo">
+            <IconRocket size={16} />
+          </ThemeIcon>
+          <Title order={4}>Submit pre-processing job</Title>
+        </Group>
 
         {pipeline ? (
           <Alert color="blue" variant="light" mb="md" icon={<IconCheck size={16} />}>
@@ -216,26 +240,21 @@ export default function JobsPage() {
 
           <Stack gap="sm">
             <Grid>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
+              <Grid.Col span={12}>
                 <TextInput
                   name="name" label="Job name"
                   placeholder={`opencv-preprocess-${Date.now()}`}
                 />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 3 }}>
-                <TextInput name="appId" label="App ID" defaultValue={defaults.appId} required />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 3 }}>
-                <TextInput name="appVersion" label="App version" defaultValue={defaults.appVersion} required />
               </Grid.Col>
             </Grid>
 
             <Divider label="Data" labelPosition="left" />
             <Grid>
               <Grid.Col span={{ base: 12, sm: 4 }}>
-                <TextInput
+                <Select
                   name="sourceSystemId" label="Source system"
-                  defaultValue={defaults.sourceSystemId} required
+                  data={defaults.systems} defaultValue={defaults.sourceSystemId}
+                  required allowDeselect={false} searchable
                   description="System holding the input images"
                 />
               </Grid.Col>
@@ -253,9 +272,10 @@ export default function JobsPage() {
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput
+                <Select
                   name="archiveSystemId" label="Archive (output) system"
-                  defaultValue={defaults.archiveSystemId} required
+                  data={defaults.systems} defaultValue={defaults.archiveSystemId}
+                  required allowDeselect={false} searchable
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
@@ -270,24 +290,41 @@ export default function JobsPage() {
             <Divider label="Compute parameters" labelPosition="left" />
             <Grid>
               <Grid.Col span={{ base: 12, sm: 4 }}>
-                <TextInput name="execSystemId" label="Exec system" defaultValue={defaults.execSystemId} required />
+                <Select
+                  name="execSystemId" label="Exec system"
+                  data={defaults.systems} defaultValue={defaults.execSystemId}
+                  required allowDeselect={false} searchable
+                />
               </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 2 }}>
+              <Grid.Col span={{ base: 12, sm: 4 }}>
+                <TextInput
+                  name="allocationAccount" label="Allocation account (SLURM)"
+                  defaultValue={defaults.slurmAccount}
+                  placeholder="e.g. PAS2699"
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 6, sm: 1 }}>
                 <NumberInput name="nodeCount" label="Nodes" defaultValue={1} min={1} />
               </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 2 }}>
-                <NumberInput name="coresPerNode" label="Cores/node" defaultValue={1} min={1} />
+              <Grid.Col span={{ base: 6, sm: 1 }}>
+                <NumberInput name="coresPerNode" label="Cores" defaultValue={1} min={1} />
               </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 2 }}>
-                <NumberInput name="memoryMB" label="Memory (MB)" defaultValue={4096} min={256} step={256} />
+              <Grid.Col span={{ base: 6, sm: 1 }}>
+                <NumberInput name="memoryMB" label="Mem (MB)" defaultValue={4096} min={256} step={256} />
               </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 2 }}>
-                <NumberInput name="maxMinutes" label="Max minutes" defaultValue={120} min={1} />
+              <Grid.Col span={{ base: 6, sm: 1 }}>
+                <NumberInput name="maxMinutes" label="Minutes" defaultValue={120} min={1} />
               </Grid.Col>
             </Grid>
 
-            <Group justify="flex-end" mt="xs">
-              <Button type="submit" loading={submitting} disabled={!pipeline}>
+            <Group justify="flex-end" mt="md">
+              <Button
+                type="submit"
+                size="md"
+                leftSection={<IconRocket size={16} />}
+                loading={submitting}
+                disabled={!pipeline}
+              >
                 Submit job
               </Button>
             </Group>
@@ -296,60 +333,78 @@ export default function JobsPage() {
       </Paper>
 
       {/* ── Jobs table ── */}
-      <Title order={5} mb="xs">Your jobs</Title>
+      <Group gap="xs" mb="sm">
+        <Title order={4}>Your jobs</Title>
+        {jobs.length > 0 && (
+          <Badge variant="light" color="gray" radius="sm">{jobs.length}</Badge>
+        )}
+      </Group>
+
       {jobsError ? (
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>{jobsError}</Alert>
+        <Alert color="red" radius="md" icon={<IconAlertCircle size={16} />}>{jobsError}</Alert>
       ) : jobs.length === 0 ? (
-        <Text c="dimmed" size="sm">No jobs yet.</Text>
+        <Paper withBorder radius="md" py={48}>
+          <Center>
+            <Stack align="center" gap={6}>
+              <ThemeIcon variant="light" color="gray" size={48} radius="xl">
+                <IconInbox size={24} />
+              </ThemeIcon>
+              <Text c="dimmed" size="sm">No pre-processing jobs yet</Text>
+              <Text c="dimmed" size="xs">Submit one above to see it here</Text>
+            </Stack>
+          </Center>
+        </Paper>
       ) : (
-        <ScrollArea>
-          <Table striped highlightOnHover verticalSpacing="xs" miw={720}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>App</Table.Th>
-                <Table.Th>Created</Table.Th>
-                <Table.Th>Last updated</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {jobs.map((job) => (
-                <Table.Tr key={job.uuid}>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>{job.name}</Text>
-                    <Code fz={10}>{job.uuid}</Code>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge color={statusColor(job.status)} variant="light">
-                      {job.status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{job.appId}</Text>
-                    <Text size="xs" c="dimmed">{job.appVersion}</Text>
-                  </Table.Td>
-                  <Table.Td><Text size="xs">{formatDate(job.created)}</Text></Table.Td>
-                  <Table.Td><Text size="xs">{formatDate(job.lastUpdated)}</Text></Table.Td>
-                  <Table.Td>
-                    {isJobActive(job.status) && (
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="cancel" />
-                        <input type="hidden" name="uuid" value={job.uuid} />
-                        <Tooltip label="Cancel job">
-                          <ActionIcon type="submit" variant="subtle" color="red" aria-label="Cancel">
-                            <IconX size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Form>
-                    )}
-                  </Table.Td>
+        <Paper withBorder radius="md">
+          <ScrollArea>
+            <Table striped highlightOnHover verticalSpacing="sm" horizontalSpacing="md" miw={720}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>App</Table.Th>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th>Last updated</Table.Th>
+                  <Table.Th />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </ScrollArea>
+              </Table.Thead>
+              <Table.Tbody>
+                {jobs.map((job) => (
+                  <Table.Tr key={job.uuid}>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>{job.name}</Text>
+                      <Code fz={10} c="dimmed">{job.uuid}</Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={statusColor(job.status)} variant="dot">
+                        {job.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" fw={500}>{job.appId}</Text>
+                      <Text size="xs" c="dimmed">{job.appVersion}</Text>
+                    </Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{formatDate(job.created)}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{formatDate(job.lastUpdated)}</Text></Table.Td>
+                    <Table.Td>
+                      {isJobActive(job.status) && (
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="cancel" />
+                          <input type="hidden" name="uuid" value={job.uuid} />
+                          <Tooltip label="Cancel job">
+                            <ActionIcon type="submit" variant="light" color="red" aria-label="Cancel">
+                              <IconX size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Form>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Paper>
       )}
     </Container>
   );

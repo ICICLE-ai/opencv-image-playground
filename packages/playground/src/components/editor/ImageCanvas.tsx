@@ -3,7 +3,7 @@ import {
   Box, Center, Group, Loader,
   Stack, Text, Button, Overlay,
   Tooltip,
-  ActionIcon,
+  ActionIcon, Paper, Badge,
 } from "@mantine/core";
 import { IconUpload, IconPhoto, IconZoomIn, IconZoomReset, IconZoomOut, IconArrowsMinimize, IconArrowsMaximize } from "@tabler/icons-react";
 import { useFileSource } from "../../contexts/FileSourceContext";
@@ -158,28 +158,36 @@ export function ImageCanvas({
       {/* Toolbar */}
       <Group
         px="md"
-        py={6}
-        gap={"xs"}
-        style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
+        py={8}
+        gap="xs"
+        style={{
+          borderBottom: "1px solid var(--mantine-color-default-border)",
+          background: "var(--mantine-color-body)",
+          flexShrink: 0,
+        }}
       >
         <Button
           size="xs"
-          variant="subtle"
+          variant="light"
           leftSection={<IconUpload size={12} />}
           onClick={handleUpload}
         >
           Change image
         </Button>
         {currentFile && (
-          <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+          <Text size="xs" c="dimmed" style={{ flex: 1 }} truncate>
             {currentFile.name} · {(currentFile.size / 1024).toFixed(0)} KB
           </Text>
         )}
-        {/* Zoom Controls */}
-        <Tooltip label="Zoom out"><ActionIcon variant="subtle" size="sm" onClick={zoomOut} disabled={zoom.scale <= MIN_SCALE}><IconZoomOut size={14} /></ActionIcon></Tooltip>
-        <Text size="xs" c="dimmed" w={36} ta="center">{Math.round(zoom.scale * 100)}%</Text>
-        <Tooltip label="Zoom in"><ActionIcon variant="subtle" size="sm" onClick={zoomIn} disabled={zoom.scale >= MAX_SCLAE}><IconZoomIn size={14} /></ActionIcon></Tooltip>
-        <Tooltip label="Reset zoom"><ActionIcon variant="subtle" size="sm" onClick={zoomReset} disabled={zoom.scale === 1}><IconZoomReset size={14} /></ActionIcon></Tooltip>
+        {/* Zoom Controls — grouped into a segmented control */}
+        <Paper withBorder radius="md" p={2}>
+          <Group gap={2} wrap="nowrap">
+            <Tooltip label="Zoom out"><ActionIcon variant="subtle" color="gray" size="sm" onClick={zoomOut} disabled={zoom.scale <= MIN_SCALE}><IconZoomOut size={14} /></ActionIcon></Tooltip>
+            <Text size="xs" c="dimmed" w={40} ta="center" fw={500}>{Math.round(zoom.scale * 100)}%</Text>
+            <Tooltip label="Zoom in"><ActionIcon variant="subtle" color="gray" size="sm" onClick={zoomIn} disabled={zoom.scale >= MAX_SCLAE}><IconZoomIn size={14} /></ActionIcon></Tooltip>
+            <Tooltip label="Reset zoom"><ActionIcon variant="subtle" color="gray" size="sm" onClick={zoomReset} disabled={zoom.scale === 1}><IconZoomReset size={14} /></ActionIcon></Tooltip>
+          </Group>
+        </Paper>
       </Group>
 
       {/* Side by side view */}
@@ -211,7 +219,7 @@ export function ImageCanvas({
               justify="space-between"
               style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
             >
-              <Text size="xs" c="dimmed">Original</Text>
+              <Badge size="sm" variant="light" color="gray" radius="sm">Original</Badge>
               <Tooltip label={expanded === "original" ? "Show both" : "Expand"}>
                 <ActionIcon variant="subtle" size="xs" onClick={() => togglePanel("original")}>
                   {expanded === "original"
@@ -256,7 +264,7 @@ export function ImageCanvas({
               justify="space-between"
               style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
             >
-              <Text size="xs" c="dimmed">Processed</Text>
+              <Badge size="sm" variant="light" color="indigo" radius="sm">Processed</Badge>
               <Tooltip label={expanded === "processed" ? "Show both" : "Expand"}>
                 <ActionIcon variant="subtle" size="xs" onClick={() => togglePanel("processed")}>
                   {expanded === "processed"
