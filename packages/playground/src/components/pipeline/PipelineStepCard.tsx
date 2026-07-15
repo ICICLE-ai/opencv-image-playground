@@ -1,6 +1,6 @@
 import {
   Paper, Group, Text, ActionIcon,
-  Collapse, Stack, Switch, Tooltip,
+  Collapse, Stack, Switch, Tooltip, ThemeIcon,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -12,6 +12,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { OP_REGISTRY , type PipelineStep} from "@opencv-image-playground/core";
 import { usePipeline } from "../../contexts/PipelineContext";
+import { categoryMeta } from "../../lib/categoryMeta";
 import { ParamEditor } from "../params/ParamEditor";
 
 interface StepResult {
@@ -31,6 +32,7 @@ export function PipelineStepCard({ step, index, result }: Props) {
   const [paramsOpen, { toggle: toggleParams }] = useDisclosure(false);
   const opDef = OP_REGISTRY[step.op];
   const hasParams = opDef && Object.keys(opDef.params).length > 0;
+  const meta = categoryMeta(opDef?.category ?? "");
 
   // dnd-kit — makes this card draggable
   const {
@@ -46,6 +48,8 @@ export function PipelineStepCard({ step, index, result }: Props) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    borderLeft: `3px solid var(--mantine-color-${meta.color}-6)`,
+    boxShadow: isDragging ? "var(--mantine-shadow-md)" : undefined,
   };
 
   return (
@@ -54,8 +58,8 @@ export function PipelineStepCard({ step, index, result }: Props) {
       style={style}
       withBorder
       p="xs"
-      radius="sm"
-      opacity={step.enabled ? 1 : 0.5}
+      radius="md"
+      opacity={step.enabled ? 1 : 0.55}
     >
       <Group gap="xs" wrap="nowrap">
 
@@ -72,12 +76,12 @@ export function PipelineStepCard({ step, index, result }: Props) {
         </ActionIcon>
 
         {/* Step number */}
-        <Text size="xs" c="dimmed" w={16} ta="center">
-          {index + 1}
-        </Text>
+        <ThemeIcon variant="light" color={meta.color} size={20} radius="xl">
+          <Text fz={10} fw={700}>{index + 1}</Text>
+        </ThemeIcon>
 
         {/* Op name */}
-        <Text size="xs" fw={500} style={{ flex: 1 }}>
+        <Text size="xs" fw={600} style={{ flex: 1 }}>
           {opDef?.name ?? step.op}
         </Text>
 

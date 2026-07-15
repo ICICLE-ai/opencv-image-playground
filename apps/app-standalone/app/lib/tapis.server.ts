@@ -34,6 +34,59 @@ export const TAPIS_CONFIGURED = Boolean(
    TAPIS_BASE_URL && TAPIS_CLIENT_ID && TAPIS_CLIENT_KEY,
 );
 
+// ─── Jobs / app configuration ─────────────────────────────────────────────────
+// Defaults for the pre-processing Tapis app. Every value is overridable from the
+// submit form; these just pre-fill it.
+
+// Selectable Tapis systems, overridable via TAPIS_SYSTEMS (comma-separated).
+const DEFAULT_SYSTEMS = [
+   "pitzer-tapis",
+   "expanse-tapis",
+   "expanse-tapis-static",
+   "cardinal-tapis",
+   "ascend-tapis",
+];
+
+export const JOB_DEFAULTS = {
+   appId: process.env.TAPIS_APP_ID ?? "opencv-preprocess",
+   appVersion: process.env.TAPIS_APP_VERSION ?? "0.1.0",
+   // System that holds the input images / where the pipeline is uploaded.
+   sourceSystemId: process.env.TAPIS_SYSTEM_ID ?? "",
+   // Where the job runs and where results are archived. Fall back to the
+   // source system so a single-system setup works out of the box.
+   execSystemId:
+      process.env.TAPIS_EXEC_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
+   archiveSystemId:
+      process.env.TAPIS_ARCHIVE_SYSTEM_ID ?? process.env.TAPIS_SYSTEM_ID ?? "",
+   // Default SLURM allocation account for scheduler options.
+   slurmAccount: process.env.SLURM_ACCOUNT ?? "",
+   // Systems offered in the submit-form dropdowns.
+   systems: (process.env.TAPIS_SYSTEMS
+      ? process.env.TAPIS_SYSTEMS.split(",").map((s) => s.trim()).filter(Boolean)
+      : DEFAULT_SYSTEMS),
+} as const;
+
+// Per-exec-system execution profile.
+//   • OSC clusters (Pitzer / Cardinal / Ascend) run jobs out of a /fs/scratch
+//     working directory and submit to the "cpu" queue.
+//   • Expanse uses the shared "tapisShared" queue and relies on the app's
+//     default working directories (no scratch override).
+export interface ExecProfile {
+   /** True for OSC-style systems — include the /fs/scratch working dirs. */
+   isOSC: boolean;
+   /** Tapis logical queue to submit to. */
+   queue: string;
+}
+
+export function execSystemProfile(execSystemId: string): ExecProfile {
+   const id = execSystemId.toLowerCase();
+   if (id.includes("expanse")) {
+      return { isOSC: false, queue: "tapisShared" };
+   }
+   // Default: OSC-style systems (pitzer, cardinal, ascend, …).
+   return { isOSC: true, queue: "cpu" };
+}
+
 // The cookie name Tapis sets when a user is already logged in via another
 // Tapis application — we check this first before our own session
 const TAPIS_COOKIE_NAME = "X-Tapis-Token";
@@ -293,32 +346,71 @@ export function usernameFromToken(token: string): string {
 // ─── Token reading ────────────────────────────────────────────────────────────
 
 /**
- * Reads the Tapis JWT from either:
- * 1. The raw X-Tapis-Token cookie (set by Tapis when user is already logged in)
- * 2. Our own signed session cookie (set after our OAuth2 flow)
+ * Reads the Tapis JWT, in priority order:
+ * 1. The X-Tapis-Token request HEADER — injected by a Tapis auth gateway /
+ *    Tapis Pods when `tapis_auth` fronts the app. No OAuth flow needed.
+ * 2. The raw X-Tapis-Token cookie (set when logged in via another Tapis app).
+ * 3. Our own signed session cookie (set after our OAuth2 flow).
  *
- * Checks #1 first — if the user is already authenticated via Tapis,
- * no need to go through the OAuth2 flow again.
+ * With #1 or #2 the user is already authenticated — no client key, no login.
  */
 export async function getTapisToken(request: Request): Promise<string | null> {
+   // 1. Token injected as a request header by a Tapis gateway / Pod.
+   const headerToken = request.headers.get(TAPIS_COOKIE_NAME);
+   if (headerToken) return headerToken;
+
    const cookieHeader = request.headers.get("Cookie") ?? "";
 
-   // 1. Check for raw Tapis cookie
+   // 2. Raw Tapis cookie.
    const rawToken = parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME);
    if (rawToken) return rawToken;
 
-   // 2. Check our own session
+   // 3. Our own session.
    const session = await sessionStorage.getSession(cookieHeader);
    return session.get("access_token") ?? null;
 }
 
 /**
+ * Where the current auth came from:
+ *   "tapis"   — an X-Tapis-Token header/cookie managed by Tapis (tapis_auth
+ *               gateway / SSO). The app CANNOT sign the user out of this.
+ *   "session" — our own OAuth session cookie. The app CAN sign out.
+ *   null      — not authenticated.
+ */
+export type TapisAuthSource = "tapis" | "session" | null;
+
+export async function getTapisAuthSource(
+   request: Request,
+): Promise<TapisAuthSource> {
+   if (request.headers.get(TAPIS_COOKIE_NAME)) return "tapis";
+
+   const cookieHeader = request.headers.get("Cookie") ?? "";
+   if (parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME)) return "tapis";
+
+   const session = await sessionStorage.getSession(cookieHeader);
+   return session.get("access_token") ? "session" : null;
+}
+
+/**
  * Gets the logged-in username — shown in the header UI.
+ *
+ * If the user arrived with a raw X-Tapis-Token cookie (already authenticated via
+ * another Tapis app), there is no session, so we decode the username straight
+ * from that token. This is the identity half of "if the X-Tapis-Token cookie is
+ * present, skip our own login."
  */
 export async function getTapisUsername(
    request: Request,
 ): Promise<string | null> {
+   // Same precedence as getTapisToken: header, then cookie, then session.
+   const headerToken = request.headers.get(TAPIS_COOKIE_NAME);
+   if (headerToken) return usernameFromToken(headerToken);
+
    const cookieHeader = request.headers.get("Cookie") ?? "";
+
+   const rawToken = parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME);
+   if (rawToken) return usernameFromToken(rawToken);
+
    const session = await sessionStorage.getSession(cookieHeader);
    return session.get("username") ?? null;
 }
@@ -360,17 +452,30 @@ export async function createTokenSession(
 }
 
 /**
- * Destroys the session cookie and redirects to home.
+ * Signs the user out and redirects home.
+ *
+ * Clears BOTH our OAuth session cookie AND the raw X-Tapis-Token SSO cookie —
+ * otherwise, since getTapisToken reads X-Tapis-Token first, that cookie would
+ * survive session teardown and the user would stay logged in.
+ *
+ * Note: a token injected as an X-Tapis-Token *header* by a Tapis gateway / Pod
+ * cannot be cleared from here — for that setup, sign-out happens at Tapis.
  */
 export async function destroyTokenSession(request: Request): Promise<Response> {
    const session = await sessionStorage.getSession(
       request.headers.get("Cookie"),
    );
-   return redirect("/", {
-      headers: {
-         "Set-Cookie": await sessionStorage.destroySession(session),
-      },
-   });
+
+   const headers = new Headers();
+   headers.append("Set-Cookie", await sessionStorage.destroySession(session));
+   // Expire the raw Tapis SSO cookie (best-effort — must match its path).
+   const secure = APP_BASE_URL.startsWith("https://") ? " Secure;" : "";
+   headers.append(
+      "Set-Cookie",
+      `${TAPIS_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly;${secure} SameSite=Lax`,
+   );
+
+   return redirect("/", { headers });
 }
 
 // ─── Tapis Files API ──────────────────────────────────────────────────────────
@@ -440,4 +545,234 @@ export async function downloadTapisFile(
    }
 
    return response.blob();
+}
+
+/**
+ * Uploads (inserts) a text file to a Tapis system path.
+ * Used to stage the exported operations.json pipeline so a job can reference it
+ * as a file input. `destPath` is the full destination path including filename.
+ */
+export async function uploadTapisTextFile(
+   token: string,
+   systemId: string,
+   destPath: string,
+   contents: string,
+   filename = "operations.json",
+): Promise<void> {
+   const cleanPath = destPath.startsWith("/") ? destPath : "/" + destPath;
+   const url = `${TAPIS_BASE_URL}/v3/files/ops/${systemId}${cleanPath}`;
+
+   const form = new FormData();
+   form.append("file", new Blob([contents], { type: "application/json" }), filename);
+
+   const response = await fetch(url, {
+      method: "POST",
+      headers: { "X-Tapis-Token": token },
+      body: form,
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis upload failed (${response.status}): ${text}`);
+   }
+}
+
+// ─── Tapis Jobs API ────────────────────────────────────────────────────────────
+// Docs: https://tapis-project.github.io/live-docs/?service=Jobs
+
+export interface TapisJob {
+   uuid: string;
+   name: string;
+   appId: string;
+   appVersion: string;
+   status: string;
+   created: string;
+   lastUpdated: string;
+   ended?: string;
+   remoteOutcome?: string;
+   execSystemId?: string;
+   archiveSystemId?: string;
+   archiveSystemDir?: string;
+}
+
+/** Input needed to build and submit a pre-processing job. */
+export interface SubmitJobInput {
+   name: string;
+   appId: string;
+   appVersion: string;
+   sourceSystemId: string;
+   inputDir: string;
+   outputDir: string;
+   execSystemId: string;
+   archiveSystemId: string;
+   nodeCount: number;
+   coresPerNode: number;
+   memoryMB: number;
+   maxMinutes: number;
+   imageExtensions?: string;
+   /** SLURM allocation account, passed as a scheduler option (--account=...). */
+   allocationAccount?: string;
+   /** The exported pipeline JSON to stage as operations.json. */
+   pipelineJson: string;
+}
+
+/** Trim, and strip a single leading slash for use inside a tapis:// URL. */
+function normalizeDir(path: string): string {
+   const trimmed = path.trim();
+   return trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+/**
+ * Stages the pipeline to the input directory, then submits the Tapis job.
+ * Returns the created job's uuid.
+ */
+export async function submitTapisJob(
+   token: string,
+   input: SubmitJobInput,
+): Promise<string> {
+   const inputDir = normalizeDir(input.inputDir);
+   const outputDir = normalizeDir(input.outputDir);
+   const pipelinePath = `${inputDir}/operations.json`;
+
+   // 1. Stage the pipeline next to the images so a fileInput can reference it.
+   await uploadTapisTextFile(
+      token,
+      input.sourceSystemId,
+      pipelinePath,
+      input.pipelineJson,
+   );
+
+   // 2. Build the job request body (POST /v3/jobs/submit).
+   const envVariables = input.imageExtensions?.trim()
+      ? [{ key: "IMAGE_EXTENSIONS", value: input.imageExtensions.trim() }]
+      : [];
+
+   // SLURM allocation → batch scheduler directive (-A <account>).
+   const schedulerOptions = input.allocationAccount?.trim()
+      ? [{ name: "slurm account", arg: `-A ${input.allocationAccount.trim()}` }]
+      : [];
+
+   // Pass the entrypoint args through the job body so the app definition does
+   // not need FIXED appArgs. Paths are relative to the job working dir and match
+   // the fileInput targetPaths below (input/, operations.json) and the output dir.
+   const appArgs = [
+      { name: "input-dir", arg: "--input input" },
+      { name: "output-dir", arg: "--output output" },
+      { name: "pipeline", arg: "--pipeline operations.json" },
+   ];
+
+   // System-specific execution: queue + whether to override the working dirs.
+   const profile = execSystemProfile(input.execSystemId);
+   const scratchBase =
+      "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}";
+   const execDirs = profile.isOSC
+      ? {
+           execSystemExecDir: scratchBase,
+           execSystemInputDir: scratchBase,
+           execSystemOutputDir: scratchBase + "/output",
+        }
+      : {};
+
+   const body = {
+      name: input.name,
+      appId: input.appId,
+      appVersion: input.appVersion,
+      description: "Recursive OpenCV pre-processing from the Image Playground",
+      execSystemId: input.execSystemId,
+      execSystemLogicalQueue: profile.queue,
+      archiveSystemId: input.archiveSystemId,
+      archiveSystemDir: `${outputDir}`,
+      archiveOnAppError: true,
+      nodeCount: input.nodeCount,
+      coresPerNode: input.coresPerNode,
+      memoryMB: input.memoryMB,
+      maxMinutes: input.maxMinutes,
+      parameterSet: { appArgs, envVariables, schedulerOptions },
+      ...execDirs,
+      fileInputs: [
+         {
+            name: "input-images",
+            sourceUrl: `tapis://${input.sourceSystemId}/${inputDir}`,
+            targetPath: "input",
+         },
+         {
+            name: "pipeline",
+            sourceUrl: `tapis://${input.sourceSystemId}/${pipelinePath}`,
+            targetPath: "operations.json",
+         },
+      ],
+   };
+
+   const response = await fetch(`${TAPIS_BASE_URL}/v3/jobs/submit`, {
+      method: "POST",
+      headers: {
+         "X-Tapis-Token": token,
+         "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis job submit failed (${response.status}): ${text}`);
+   }
+
+   const data = await response.json();
+   const uuid = data?.result?.uuid;
+   if (typeof uuid !== "string") {
+      throw new Error(`Job submitted but no uuid returned: ${JSON.stringify(data)}`);
+   }
+   return uuid;
+}
+
+/** Lists the caller's jobs, most-recently-created first. */
+export async function listTapisJobs(
+   token: string,
+   limit = 50,
+): Promise<TapisJob[]> {
+   const url =
+      `${TAPIS_BASE_URL}/v3/jobs/list` +
+      `?limit=${limit}&orderBy=created(desc)&computeTotal=false`;
+
+   const response = await fetch(url, {
+      headers: { "X-Tapis-Token": token, "Content-Type": "application/json" },
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis jobs list failed (${response.status}): ${text}`);
+   }
+
+   const data = await response.json();
+   return (data?.result ?? []).map(toTapisJob);
+}
+
+/** Cancels a running/queued job. */
+export async function cancelTapisJob(token: string, uuid: string): Promise<void> {
+   const response = await fetch(`${TAPIS_BASE_URL}/v3/jobs/${uuid}/cancel`, {
+      method: "POST",
+      headers: { "X-Tapis-Token": token, "Content-Type": "application/json" },
+   });
+
+   if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Tapis job cancel failed (${response.status}): ${text}`);
+   }
+}
+
+function toTapisJob(j: Record<string, unknown>): TapisJob {
+   return {
+      uuid: String(j.uuid ?? ""),
+      name: String(j.name ?? ""),
+      appId: String(j.appId ?? ""),
+      appVersion: String(j.appVersion ?? ""),
+      status: String(j.status ?? "UNKNOWN"),
+      created: String(j.created ?? ""),
+      lastUpdated: String(j.lastUpdated ?? ""),
+      ended: j.ended ? String(j.ended) : undefined,
+      remoteOutcome: j.remoteOutcome ? String(j.remoteOutcome) : undefined,
+      execSystemId: j.execSystemId ? String(j.execSystemId) : undefined,
+      archiveSystemId: j.archiveSystemId ? String(j.archiveSystemId) : undefined,
+      archiveSystemDir: j.archiveSystemDir ? String(j.archiveSystemDir) : undefined,
+   };
 }

@@ -16,6 +16,11 @@ data:
   TAPIS_BASE_URL:   "https://icicleai.tapis.io"
   TAPIS_CLIENT_ID:  "opencv-image-playground"
   TAPIS_SYSTEM_ID:  "pitzer-tapis"
+  # Tapis batch-job pre-processing app + systems
+  TAPIS_APP_ID:            "opencv-preprocess"
+  TAPIS_APP_VERSION:       "0.1.0"
+  TAPIS_EXEC_SYSTEM_ID:    "pitzer-tapis"
+  TAPIS_ARCHIVE_SYSTEM_ID: "pitzer-tapis"
 
 ---
 # ── ConfigMap — python-bridge (FastAPI + OpenCV) ──────────────────────────────
@@ -28,16 +33,12 @@ data:
 
 ---
 # ── Secret ────────────────────────────────────────────────────────────────────
-# Generate APP_SECRET:  openssl rand -hex 32
-# Generate TAPIS values from your Tapis tenant
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cv-gui-secret
-type: Opaque
-stringData:
-  TAPIS_CLIENT_KEY: "9xF0C9Facv7uH4AzCrJK"    # your Tapis client key (plain text — k8s encodes it)
-  APP_SECRET: "40d7a1342529ca7ab1f0ad34b1712df090fab5a3075a1102b3e60cb4e15e1ced"    # openssl rand -hex 32
+# NOTE: cv-gui-secret is provisioned out-of-band (kubectl vault) — do NOT commit
+# real secret values here. Create it with, e.g.:
+#   kubectl create secret generic cv-gui-secret \
+#     --from-literal=TAPIS_CLIENT_KEY=... \
+#     --from-literal=APP_SECRET="$(openssl rand -hex 32)"
+# The app Deployment references it via secretRef: cv-gui-secret.
 
 ---
 # ── Deployment — python-bridge ────────────────────────────────────────────────

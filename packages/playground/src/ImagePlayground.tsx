@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import {
   AppShell, Group, Text, ActionIcon,
-  Tooltip, Badge, Box,
+  Tooltip, Badge, Box, ThemeIcon,
 } from "@mantine/core";
 import {
-  IconDownload, IconUpload,
+  IconDownload, IconUpload, IconWand,
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
 } from "@tabler/icons-react";
@@ -100,7 +100,10 @@ function PlaygroundInner({
 
             {/* Left */}
             <Group gap="xs">
-              <Text fw={600} size="sm">{title}</Text>
+              <ThemeIcon size={28} radius="md" variant="light" color="indigo">
+                <IconWand size={16} />
+              </ThemeIcon>
+              <Text fw={700} size="sm">{title}</Text>
               {state.isDirty && (
                 <Badge size="xs" color="orange" variant="dot">unsaved</Badge>
               )}

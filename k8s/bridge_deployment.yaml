@@ -1,0 +1,102 @@
+# ── ConfigMap — python-bridge ─────────────────────────────────────────────────
+# Referenced by the Deployment's envFrom, so it must exist before the pod starts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cv-gui-bridge-config
+data:
+  PYTHONUNBUFFERED: "1"
+
+---
+# ── Deployment — python-bridge ────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-gui-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cv-gui-bridge
+  template:
+    metadata:
+      labels:
+        app: cv-gui-bridge
+    spec:
+      containers:
+      - name: cv-gui-bridge
+        image: ghcr.io/icicle-ai/opencv-image-playground-bridge:v1.0.1
+        ports:
+        - containerPort: 8000
+          name: fastapi
+        envFrom:
+        - configMapRef:
+            name: cv-gui-bridge-config
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+
+---
+# ── Service — python-bridge ───────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: cv-gui-bridge
+spec:
+  selector:
+    app: cv-gui-bridge
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# ── Ingress — python-bridge ───────────────────────────────────────────────────
+# Exposes the bridge publicly so a frontend running OUTSIDE the cluster (e.g. your
+# local machine) can reach it. Adjust the host to a DNS name that resolves to the
+# cluster ingress. TLS is terminated at the ingress (haproxy on NRP Nautilus).
+#
+# ⚠️ The bridge has NO authentication — a public ingress lets anyone invoke
+#    /process. See the review notes; prefer a cluster-internal path if possible.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cv-gui-bridge-ingress
+  annotations:
+    haproxy-ingress-proxy.timeout: "300s"
+    haproxy.router.openshift.io/timeout: "300s"
+    ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: haproxy
+  rules:
+  - host: opencv-image-playground-bridge.sailab.nrp-nautilus.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cv-gui-bridge
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - opencv-image-playground-bridge.sailab.nrp-nautilus.io

@@ -38,6 +38,10 @@ services:
       - APP_BASE_URL=${APP_BASE_URL}
       - APP_SECRET=${APP_SECRET}
       - TAPIS_SYSTEM_ID=${TAPIS_SYSTEM_ID}
+      - TAPIS_APP_ID=${TAPIS_APP_ID}
+      - TAPIS_APP_VERSION=${TAPIS_APP_VERSION}
+      - TAPIS_EXEC_SYSTEM_ID=${TAPIS_EXEC_SYSTEM_ID}
+      - TAPIS_ARCHIVE_SYSTEM_ID=${TAPIS_ARCHIVE_SYSTEM_ID}
     depends_on:
       bridge:
         condition: service_healthy

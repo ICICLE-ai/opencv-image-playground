@@ -43,7 +43,9 @@ From: python:3.12-slim
     python -m pip install --no-cache-dir /opt/build/opencv-executor
     rm -rf /opt/build
 
-    chmod +x /opt/app/preprocess.py
+    # Make the dir traversable and the script readable for ALL users — Apptainer
+    # runs as the (non-root) calling user, who must be able to read the script.
+    chmod -R a+rX /opt/app
 
 %environment
     export PYTHONUNBUFFERED=1
