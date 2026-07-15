@@ -16,6 +16,7 @@ import {
   getTapisAuthSource,
   buildAuthUrl,
   TAPIS_CONFIGURED,
+  JOB_DEFAULTS,
 } from "~/lib/tapis.server";
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -33,6 +34,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     tapisUsername,
     tapisConfigured: configured,
     tapisSystemId: process.env.TAPIS_SYSTEM_ID ?? "",
+    // Same set of systems the jobs page offers, so the file browser can
+    // browse any of them — not just the default TAPIS_SYSTEM_ID.
+    tapisSystems: JOB_DEFAULTS.systems,
     tapisLoginUrl,
     // Only our own OAuth session can be signed out. Under tapis_auth the token
     // is managed by the Tapis gateway, so the app can't clear it — hide logout.
@@ -48,13 +52,26 @@ export default function Index() {
     tapisConfigured,
     tapisUsername,
     tapisSystemId,
+    tapisSystems,
     tapisLoginUrl,
     canSignOut,
   } = useLoaderData<typeof loader>();
 
+  // Offer every system the jobs page supports. Keep the configured default
+  // (if any) so it's pre-selected, and ensure it's present in the list.
+  const systems = useMemo(
+    () => {
+      const ids = tapisSystemId
+        ? [tapisSystemId, ...tapisSystems.filter((s) => s !== tapisSystemId)]
+        : tapisSystems;
+      return ids.map((id) => ({ id, label: id }));
+    },
+    [tapisSystemId, tapisSystems],
+  );
+
   const { fileSource: tapisFileSource, FileBrowserModal } = useTapisFileSource({
     defaultSystemId: tapisSystemId,
-    systems: tapisSystemId ? [{ id: tapisSystemId, label: tapisSystemId }] : [],
+    systems,
   });
 
   // Local source is always available; Tapis is offered (with its own file
