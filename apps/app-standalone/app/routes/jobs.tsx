@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Container, Title, Text, Paper, Grid, TextInput, NumberInput, Button,
   Table, Badge, Group, Stack, Alert, Code, Anchor, Divider, Tooltip,
@@ -6,7 +6,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowLeft, IconRefresh, IconX, IconAlertCircle, IconCheck,
-  IconServer2, IconRocket, IconInbox,
+  IconServer2, IconRocket, IconInbox, IconSearch, IconFilterOff,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import {
@@ -25,12 +25,13 @@ import { loadStoredPipeline } from "~/lib/pipelineStorage";
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  if (!TAPIS_CONFIGURED) throw redirect("/");
-
+  // Auth is what matters here — an X-Tapis-Token cookie counts as authenticated
+  // (getTapisToken prefers it) and needs no client key. When there's no token,
+  // send the user through OAuth if it's configured, otherwise home.
   const token = await getTapisToken(request);
-  // Requirement: an X-Tapis-Token cookie counts as auth (getTapisToken prefers
-  // it). Only when there's no token at all do we send the user through login.
-  if (!token) throw redirect(await buildAuthUrl("/jobs"));
+  if (!token) {
+    throw redirect(TAPIS_CONFIGURED ? await buildAuthUrl("/jobs") : "/");
+  }
 
   const username = await getTapisUsername(request);
 
@@ -166,6 +167,27 @@ export default function JobsPage() {
     }
   }, [actionData, revalidator]);
 
+  // Search (name / uuid) + status filtering — applied client-side.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  const statusOptions = useMemo(
+    () => Array.from(new Set(jobs.map((j) => j.status))).sort(),
+    [jobs],
+  );
+
+  const filteredJobs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return jobs.filter((j) => {
+      const matchesText =
+        !q || j.name.toLowerCase().includes(q) || j.uuid.toLowerCase().includes(q);
+      const matchesStatus = !statusFilter || j.status === statusFilter;
+      return matchesText && matchesStatus;
+    });
+  }, [jobs, search, statusFilter]);
+
+  const isFiltering = search.trim() !== "" || statusFilter !== null;
+
   // Auto-refresh the job list while any job is still active.
   const hasActive = jobs.some((j) => isJobActive(j.status));
   useEffect(() => {
@@ -249,7 +271,7 @@ export default function JobsPage() {
             </Grid>
 
             <Divider label="Data" labelPosition="left" />
-            <Grid>
+            <Grid align="flex-end">
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <Select
                   name="sourceSystemId" label="Source system"
@@ -288,7 +310,7 @@ export default function JobsPage() {
             </Grid>
 
             <Divider label="Compute parameters" labelPosition="left" />
-            <Grid>
+            <Grid align="flex-end">
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <Select
                   name="execSystemId" label="Exec system"
@@ -333,10 +355,47 @@ export default function JobsPage() {
       </Paper>
 
       {/* ── Jobs table ── */}
-      <Group gap="xs" mb="sm">
-        <Title order={4}>Your jobs</Title>
+      <Group justify="space-between" align="center" mb="sm" wrap="wrap">
+        <Group gap="xs">
+          <Title order={4}>Your jobs</Title>
+          {jobs.length > 0 && (
+            <Badge variant="light" color="gray" radius="sm">
+              {isFiltering ? `${filteredJobs.length}/${jobs.length}` : jobs.length}
+            </Badge>
+          )}
+        </Group>
+
         {jobs.length > 0 && (
-          <Badge variant="light" color="gray" radius="sm">{jobs.length}</Badge>
+          <Group gap="xs" wrap="nowrap">
+            <TextInput
+              placeholder="Search name or job ID"
+              leftSection={<IconSearch size={14} />}
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              w={{ base: 160, sm: 240 }}
+            />
+            <Select
+              placeholder="All statuses"
+              data={statusOptions}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              clearable
+              w={{ base: 140, sm: 180 }}
+              comboboxProps={{ withinPortal: true }}
+            />
+            {isFiltering && (
+              <Tooltip label="Clear filters">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => { setSearch(""); setStatusFilter(null); }}
+                  aria-label="Clear filters"
+                >
+                  <IconFilterOff size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
         )}
       </Group>
 
@@ -351,6 +410,20 @@ export default function JobsPage() {
               </ThemeIcon>
               <Text c="dimmed" size="sm">No pre-processing jobs yet</Text>
               <Text c="dimmed" size="xs">Submit one above to see it here</Text>
+            </Stack>
+          </Center>
+        </Paper>
+      ) : filteredJobs.length === 0 ? (
+        <Paper withBorder radius="md" py={48}>
+          <Center>
+            <Stack align="center" gap={6}>
+              <ThemeIcon variant="light" color="gray" size={48} radius="xl">
+                <IconSearch size={24} />
+              </ThemeIcon>
+              <Text c="dimmed" size="sm">No jobs match your filters</Text>
+              <Anchor size="xs" onClick={() => { setSearch(""); setStatusFilter(null); }}>
+                Clear filters
+              </Anchor>
             </Stack>
           </Center>
         </Paper>
@@ -369,7 +442,7 @@ export default function JobsPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {jobs.map((job) => (
+                {filteredJobs.map((job) => (
                   <Table.Tr key={job.uuid}>
                     <Table.Td>
                       <Text size="sm" fw={600}>{job.name}</Text>

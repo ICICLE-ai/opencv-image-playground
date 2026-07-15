@@ -13,6 +13,7 @@ import { saveStoredPipeline } from "~/lib/pipelineStorage";
 import {
   getTapisToken,
   getTapisUsername,
+  getTapisAuthSource,
   buildAuthUrl,
   TAPIS_CONFIGURED,
 } from "~/lib/tapis.server";
@@ -22,6 +23,7 @@ import {
 export async function loader({ request }: LoaderFunctionArgs) {
   const tapisToken = await getTapisToken(request);
   const tapisUsername = await getTapisUsername(request);
+  const authSource = await getTapisAuthSource(request);
   const configured = TAPIS_CONFIGURED;
 
   const tapisLoginUrl = configured ? await buildAuthUrl("/") : null;
@@ -32,6 +34,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     tapisConfigured: configured,
     tapisSystemId: process.env.TAPIS_SYSTEM_ID ?? "",
     tapisLoginUrl,
+    // Only our own OAuth session can be signed out. Under tapis_auth the token
+    // is managed by the Tapis gateway, so the app can't clear it — hide logout.
+    canSignOut: authSource === "session",
   };
 }
 
@@ -44,6 +49,7 @@ export default function Index() {
     tapisUsername,
     tapisSystemId,
     tapisLoginUrl,
+    canSignOut,
   } = useLoaderData<typeof loader>();
 
   const { fileSource: tapisFileSource, FileBrowserModal } = useTapisFileSource({
@@ -61,16 +67,21 @@ export default function Index() {
     return sources;
   }, [hasTapisAuth, tapisFileSource, FileBrowserModal]);
 
-  const headerActions = tapisConfigured
-    ? hasTapisAuth
-      ? (
-        <Group gap={4}>
-          <Tooltip label="Tapis batch jobs">
-            <ActionIcon variant="subtle" component={Link} to="/jobs">
-              <IconServer2 size={16} />
-            </ActionIcon>
-          </Tooltip>
-          {tapisUsername && <Text size="xs" c="dimmed">{tapisUsername}</Text>}
+  // Auth state — not app configuration — drives the header. A user arriving with
+  // an X-Tapis-Token cookie is authenticated without OAuth, so Jobs + Logout must
+  // show even when TAPIS_CLIENT_KEY (needed only for the login exchange) is unset.
+  // Login is offered only when OAuth is configured AND the user is not yet authed
+  // (so it's hidden whenever an X-Tapis-Token is available).
+  const headerActions = hasTapisAuth
+    ? (
+      <Group gap={4}>
+        <Tooltip label="Tapis batch jobs">
+          <ActionIcon variant="subtle" component={Link} to="/jobs">
+            <IconServer2 size={16} />
+          </ActionIcon>
+        </Tooltip>
+        {tapisUsername && <Text size="xs" c="dimmed">{tapisUsername}</Text>}
+        {canSignOut && (
           <Form method="post" action="/auth/logout">
             <Tooltip label="Sign out of Tapis">
               <ActionIcon variant="subtle" color="red" type="submit">
@@ -78,21 +89,23 @@ export default function Index() {
               </ActionIcon>
             </Tooltip>
           </Form>
-        </Group>
-      )
-      : (
+        )}
+      </Group>
+    )
+    : tapisConfigured && tapisLoginUrl
+      ? (
         <Tooltip label="Sign in with Tapis">
           <ActionIcon
             variant="subtle"
             color="teal"
             component="a"
-            href={tapisLoginUrl ?? "#"}
+            href={tapisLoginUrl}
           >
             <IconLogin size={16} />
           </ActionIcon>
         </Tooltip>
       )
-    : null;
+      : null;
 
   return (
     <ImagePlayground

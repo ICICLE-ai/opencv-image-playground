@@ -5,6 +5,10 @@ node_modules
 **/*.pyc
 .git
 .turbo
+**/.turbo
+**/.react-router
 **/build
 **/dist
 **/.env
+**/*.sif
+*.sif

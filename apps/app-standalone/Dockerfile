@@ -10,6 +10,7 @@ COPY package.json pnpm-workspace.yaml turbo.json tsconfig.base.json pnpm-lock.ya
 
 # Copy package.json files for all packages
 COPY packages/core/package.json         ./packages/core/
+COPY packages/playground/package.json   ./packages/playground/
 COPY apps/app-standalone/package.json   ./apps/app-standalone/
 
 # Install all dependencies
@@ -17,6 +18,7 @@ RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY packages/core/        ./packages/core/
+COPY packages/playground/  ./packages/playground/
 COPY apps/app-standalone/  ./apps/app-standalone/
 
 # Build the Remix app
@@ -33,6 +35,7 @@ WORKDIR /repo
 # Copy workspace config AND lockfile
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/core/package.json       ./packages/core/
+COPY packages/playground/package.json ./packages/playground/
 COPY apps/app-standalone/package.json ./apps/app-standalone/
 
 # Install production dependencies only
@@ -42,9 +45,11 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/app-standalone/build \
      ./apps/app-standalone/build
 
-# Copy core package source
+# Copy workspace package sources (consumed as TS source, main: ./src/index.ts)
 COPY --from=builder /repo/packages/core/src \
      ./packages/core/src
+COPY --from=builder /repo/packages/playground/src \
+     ./packages/playground/src
 
 WORKDIR /repo/apps/app-standalone
 

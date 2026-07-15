@@ -66,6 +66,27 @@ export const JOB_DEFAULTS = {
       : DEFAULT_SYSTEMS),
 } as const;
 
+// Per-exec-system execution profile.
+//   • OSC clusters (Pitzer / Cardinal / Ascend) run jobs out of a /fs/scratch
+//     working directory and submit to the "cpu" queue.
+//   • Expanse uses the shared "tapisShared" queue and relies on the app's
+//     default working directories (no scratch override).
+export interface ExecProfile {
+   /** True for OSC-style systems — include the /fs/scratch working dirs. */
+   isOSC: boolean;
+   /** Tapis logical queue to submit to. */
+   queue: string;
+}
+
+export function execSystemProfile(execSystemId: string): ExecProfile {
+   const id = execSystemId.toLowerCase();
+   if (id.includes("expanse")) {
+      return { isOSC: false, queue: "tapisShared" };
+   }
+   // Default: OSC-style systems (pitzer, cardinal, ascend, …).
+   return { isOSC: true, queue: "cpu" };
+}
+
 // The cookie name Tapis sets when a user is already logged in via another
 // Tapis application — we check this first before our own session
 const TAPIS_COOKIE_NAME = "X-Tapis-Token";
@@ -325,23 +346,49 @@ export function usernameFromToken(token: string): string {
 // ─── Token reading ────────────────────────────────────────────────────────────
 
 /**
- * Reads the Tapis JWT from either:
- * 1. The raw X-Tapis-Token cookie (set by Tapis when user is already logged in)
- * 2. Our own signed session cookie (set after our OAuth2 flow)
+ * Reads the Tapis JWT, in priority order:
+ * 1. The X-Tapis-Token request HEADER — injected by a Tapis auth gateway /
+ *    Tapis Pods when `tapis_auth` fronts the app. No OAuth flow needed.
+ * 2. The raw X-Tapis-Token cookie (set when logged in via another Tapis app).
+ * 3. Our own signed session cookie (set after our OAuth2 flow).
  *
- * Checks #1 first — if the user is already authenticated via Tapis,
- * no need to go through the OAuth2 flow again.
+ * With #1 or #2 the user is already authenticated — no client key, no login.
  */
 export async function getTapisToken(request: Request): Promise<string | null> {
+   // 1. Token injected as a request header by a Tapis gateway / Pod.
+   const headerToken = request.headers.get(TAPIS_COOKIE_NAME);
+   if (headerToken) return headerToken;
+
    const cookieHeader = request.headers.get("Cookie") ?? "";
 
-   // 1. Check for raw Tapis cookie
+   // 2. Raw Tapis cookie.
    const rawToken = parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME);
    if (rawToken) return rawToken;
 
-   // 2. Check our own session
+   // 3. Our own session.
    const session = await sessionStorage.getSession(cookieHeader);
    return session.get("access_token") ?? null;
+}
+
+/**
+ * Where the current auth came from:
+ *   "tapis"   — an X-Tapis-Token header/cookie managed by Tapis (tapis_auth
+ *               gateway / SSO). The app CANNOT sign the user out of this.
+ *   "session" — our own OAuth session cookie. The app CAN sign out.
+ *   null      — not authenticated.
+ */
+export type TapisAuthSource = "tapis" | "session" | null;
+
+export async function getTapisAuthSource(
+   request: Request,
+): Promise<TapisAuthSource> {
+   if (request.headers.get(TAPIS_COOKIE_NAME)) return "tapis";
+
+   const cookieHeader = request.headers.get("Cookie") ?? "";
+   if (parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME)) return "tapis";
+
+   const session = await sessionStorage.getSession(cookieHeader);
+   return session.get("access_token") ? "session" : null;
 }
 
 /**
@@ -355,9 +402,12 @@ export async function getTapisToken(request: Request): Promise<string | null> {
 export async function getTapisUsername(
    request: Request,
 ): Promise<string | null> {
+   // Same precedence as getTapisToken: header, then cookie, then session.
+   const headerToken = request.headers.get(TAPIS_COOKIE_NAME);
+   if (headerToken) return usernameFromToken(headerToken);
+
    const cookieHeader = request.headers.get("Cookie") ?? "";
 
-   // Prefer the raw Tapis cookie — same precedence as getTapisToken.
    const rawToken = parseCookieValue(cookieHeader, TAPIS_COOKIE_NAME);
    if (rawToken) return usernameFromToken(rawToken);
 
@@ -402,17 +452,30 @@ export async function createTokenSession(
 }
 
 /**
- * Destroys the session cookie and redirects to home.
+ * Signs the user out and redirects home.
+ *
+ * Clears BOTH our OAuth session cookie AND the raw X-Tapis-Token SSO cookie —
+ * otherwise, since getTapisToken reads X-Tapis-Token first, that cookie would
+ * survive session teardown and the user would stay logged in.
+ *
+ * Note: a token injected as an X-Tapis-Token *header* by a Tapis gateway / Pod
+ * cannot be cleared from here — for that setup, sign-out happens at Tapis.
  */
 export async function destroyTokenSession(request: Request): Promise<Response> {
    const session = await sessionStorage.getSession(
       request.headers.get("Cookie"),
    );
-   return redirect("/", {
-      headers: {
-         "Set-Cookie": await sessionStorage.destroySession(session),
-      },
-   });
+
+   const headers = new Headers();
+   headers.append("Set-Cookie", await sessionStorage.destroySession(session));
+   // Expire the raw Tapis SSO cookie (best-effort — must match its path).
+   const secure = APP_BASE_URL.startsWith("https://") ? " Secure;" : "";
+   headers.append(
+      "Set-Cookie",
+      `${TAPIS_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly;${secure} SameSite=Lax`,
+   );
+
+   return redirect("/", { headers });
 }
 
 // ─── Tapis Files API ──────────────────────────────────────────────────────────
@@ -589,12 +652,34 @@ export async function submitTapisJob(
       ? [{ name: "slurm account", arg: `-A ${input.allocationAccount.trim()}` }]
       : [];
 
+   // Pass the entrypoint args through the job body so the app definition does
+   // not need FIXED appArgs. Paths are relative to the job working dir and match
+   // the fileInput targetPaths below (input/, operations.json) and the output dir.
+   const appArgs = [
+      { name: "input-dir", arg: "--input input" },
+      { name: "output-dir", arg: "--output output" },
+      { name: "pipeline", arg: "--pipeline operations.json" },
+   ];
+
+   // System-specific execution: queue + whether to override the working dirs.
+   const profile = execSystemProfile(input.execSystemId);
+   const scratchBase =
+      "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}";
+   const execDirs = profile.isOSC
+      ? {
+           execSystemExecDir: scratchBase,
+           execSystemInputDir: scratchBase,
+           execSystemOutputDir: scratchBase + "/output",
+        }
+      : {};
+
    const body = {
       name: input.name,
       appId: input.appId,
       appVersion: input.appVersion,
       description: "Recursive OpenCV pre-processing from the Image Playground",
       execSystemId: input.execSystemId,
+      execSystemLogicalQueue: profile.queue,
       archiveSystemId: input.archiveSystemId,
       archiveSystemDir: `${outputDir}`,
       archiveOnAppError: true,
@@ -602,10 +687,8 @@ export async function submitTapisJob(
       coresPerNode: input.coresPerNode,
       memoryMB: input.memoryMB,
       maxMinutes: input.maxMinutes,
-      parameterSet: { envVariables, schedulerOptions },
-      execSystemExecDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}",
-      execSystemInputDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}",
-      execSystemOutputDir: "/fs/scratch/" + input.allocationAccount + "/harvest_jobs/${JobUUID}/output",
+      parameterSet: { appArgs, envVariables, schedulerOptions },
+      ...execDirs,
       fileInputs: [
          {
             name: "input-images",

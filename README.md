@@ -1,62 +1,62 @@
-# cv-gui
+# OpenCV Image Playground
 
-OpenCV pipeline GUI — Remix + Mantine frontend, FastAPI + cv2 backend.
+A browser-based OpenCV pipeline builder with two ways to run:
 
-## Quick start (development)
+1. **Interactive editor** — build a pre-processing pipeline (blur, threshold, edges,
+   morphology, colour, …) and preview it live on a single image in the browser.
+2. **Batch on HPC** — submit that same pipeline as a [Tapis](https://tapis-project.github.io/live-docs/?service=Jobs)
+   job that applies it to **every image in every subdirectory** of an input
+   folder on a chosen system, archiving the results to an output folder.
 
-### 1. Prerequisites
+📖 **[SETUP.md](SETUP.md)** — install, configure, run locally, and deploy.
+📖 **[HOW_TO_USE.md](HOW_TO_USE.md)** — using the editor, submitting Tapis jobs, and the container CLI.
+
+## Architecture
+
 ```
-node >= 20    (nvm install 20)
-pnpm >= 9     (npm i -g pnpm)
-python >= 3.11
-uv            (pip install uv)
+┌─────────────────────────────────────────────────────────────┐
+│  app-standalone  (React Router SSR + Mantine)               │
+│    /        editor  →  live preview via python-bridge        │
+│    /jobs    submit / monitor / cancel Tapis batch jobs       │
+│    server   Tapis OAuth2, Files API, Jobs API (token-safe)   │
+└───────────────┬───────────────────────────┬─────────────────┘
+                │ HTTP                       │ HTTPS (X-Tapis-Token)
+        ┌───────▼────────┐          ┌────────▼──────────┐
+        │ python-bridge  │          │   Tapis tenant     │
+        │ FastAPI + cv2  │          │  Systems / Jobs    │
+        └────────────────┘          └────────┬───────────┘
+                                             │ runs
+                                    ┌────────▼───────────┐
+                                    │ preprocess.sif      │
+                                    │ (Singularity/       │
+                                    │  Apptainer)         │
+                                    └─────────────────────┘
 ```
 
-### 2. Install JS dependencies
+## Monorepo layout
+
+| Path | What it is |
+| --- | --- |
+| [apps/app-standalone](apps/app-standalone) | React Router SSR app — the editor, the `/jobs` page, and all server-side Tapis logic. |
+| [packages/playground](packages/playground) | Reusable `<ImagePlayground>` React component (the editor UI). |
+| [packages/core](packages/core) | TypeScript op registry, Zod pipeline schema, shared types. |
+| [packages/python-bridge](packages/python-bridge) | FastAPI + OpenCV service powering the live preview (`/health`, `/process`). |
+| [packages/opencv-executor](packages/opencv-executor) | Python library + CLI that applies an exported `operations.json` to images. |
+| [packages/tapis-job](packages/tapis-job) | Singularity container + `preprocess.py` entrypoint + Tapis app/job templates. |
+
+## Quick start
+
 ```bash
 pnpm install
+docker compose up --build      # app → :3000, bridge → :8000
 ```
 
-### 3. Start the Python bridge
-```bash
-cd packages/python-bridge
-uv pip install -e .          # first time only
-python main.py               # starts on :8000
-```
+See **[SETUP.md](SETUP.md)** for the dev-server workflow, environment variables,
+and deployment.
 
-### 4. Start the Remix app
-```bash
-# from repo root
-pnpm dev
-# app runs on :3000
-```
+## Tech stack
 
-### 5. Verify everything works
-- Open http://localhost:3000
-- GET http://localhost:8000/health → { "ok": true, "opencv": "4.x.x" }
-
-## Running with Docker
-```bash
-docker compose up --build
-```
-
-## Project structure
-```
-cv-gui/
-├── packages/
-│   ├── core/               # TypeScript types, Zod schemas, op registry
-│   └── python-bridge/      # FastAPI server, all cv2 ops
-└── apps/
-    └── app-standalone/     # Remix app, Mantine UI
-        └── app/
-            ├── contexts/   # PipelineContext, FileSourceContext
-            ├── components/ # OpPanel, ImageCanvas, PipelineBuilder, ParamEditor
-            ├── lib/        # useImageProcessor, pipelineIO, theme
-            └── routes/     # _index.tsx (editor), api.process.ts (proxy)
-```
-
-## How to add a new cv2 op
-1. Add the op definition to `packages/core/src/registry.ts`
-2. Add the Python function to `packages/python-bridge/main.py`
-3. Add the key to `OP_MAP` in `main.py`
-That's it — the UI renders param controls automatically.
+- **Frontend:** React 19, React Router 7 (SSR), Mantine 9, Tailwind 4
+- **Preview backend:** FastAPI, OpenCV (`opencv-python-headless`)
+- **Batch:** Python + OpenCV in a Singularity/Apptainer container, run via Tapis
+- **Tooling:** pnpm workspaces, Turborepo, `uv` (Python)
