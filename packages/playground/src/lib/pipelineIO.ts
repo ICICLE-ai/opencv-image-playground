@@ -1,4 +1,4 @@
-import { PipelineSchema, type Pipeline } from "@opencv-image-playground/core";
+import { PipelineSchema, type Pipeline } from "@icicle-ai/opencv-image-playground-core";
 
 // Serialize pipeline to JSON and trigger browser download
 export function exportPipeline(pipeline: Pipeline): void {

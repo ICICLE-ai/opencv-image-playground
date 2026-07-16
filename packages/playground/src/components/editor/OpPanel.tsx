@@ -1,6 +1,6 @@
 import { ScrollArea, Text, Stack, Button, Accordion, Group, ThemeIcon } from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
-import { OP_CATEGORIES, getOpsByCategory } from "@opencv-image-playground/core";
+import { OP_CATEGORIES, getOpsByCategory } from "@icicle-ai/opencv-image-playground-core";
 import { usePipeline } from "../../contexts/PipelineContext";
 import { categoryMeta } from "../../lib/categoryMeta";
 

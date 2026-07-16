@@ -11,7 +11,7 @@ import {
   IconFolder, IconPhoto, IconArrowUp,
   IconAlertCircle, IconRefresh, IconSearch,
 } from "@tabler/icons-react";
-import type { FileSource } from "@opencv-image-playground/playground";
+import type { FileSource } from "@icicle-ai/opencv-image-playground";
 
 interface TapisFile {
   name: string;

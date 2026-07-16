@@ -9,7 +9,7 @@ import {
   IconLayoutSidebarRightExpand,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import type { Pipeline } from "@opencv-image-playground/core";
+import type { Pipeline } from "@icicle-ai/opencv-image-playground-core";
 import { PipelineProvider, usePipeline } from "./contexts/PipelineContext";
 import {
   FileSourceProvider,

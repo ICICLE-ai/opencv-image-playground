@@ -10,7 +10,7 @@ import {
 } from "@tabler/icons-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { OP_REGISTRY , type PipelineStep} from "@opencv-image-playground/core";
+import { OP_REGISTRY , type PipelineStep} from "@icicle-ai/opencv-image-playground-core";
 import { usePipeline } from "../../contexts/PipelineContext";
 import { categoryMeta } from "../../lib/categoryMeta";
 import { ParamEditor } from "../params/ParamEditor";

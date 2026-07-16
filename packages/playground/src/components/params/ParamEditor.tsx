@@ -1,5 +1,5 @@
 import { Slider, Switch, Select, Stack, Text, Group } from "@mantine/core";
-import type { PipelineStep, OpDef, ParamDef, ParamValue } from "@opencv-image-playground/core";
+import type { PipelineStep, OpDef, ParamDef, ParamValue } from "@icicle-ai/opencv-image-playground-core";
 import { usePipeline } from "../../contexts/PipelineContext";
 
 interface Props {

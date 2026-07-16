@@ -1,4 +1,4 @@
-// Public API for @opencv-image-playground/playground.
+// Public API for @icicle-ai/opencv-image-playground.
 // Drop <ImagePlayground/> into any Mantine app (needs MantineProvider +
 // Notifications in the host tree) to get the full client-side OpenCV editor.
 

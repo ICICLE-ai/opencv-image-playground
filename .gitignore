@@ -14,3 +14,4 @@ vscode
 *.swp
 *.swo
 *.swn
+.npmrc

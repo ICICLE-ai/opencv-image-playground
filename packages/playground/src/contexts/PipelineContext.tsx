@@ -15,7 +15,7 @@ import {
   createPipeline,
   defaultParams,
   OP_REGISTRY,
-} from "@opencv-image-playground/core";
+} from "@icicle-ai/opencv-image-playground-core";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 

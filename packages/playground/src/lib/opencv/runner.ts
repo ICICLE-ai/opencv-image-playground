@@ -3,7 +3,7 @@
 // a running "current" image; disabled steps pass through; a failing/unknown op
 // is reported without advancing the image. Every step yields a PNG data URL.
 
-import type { ParamValue } from "@opencv-image-playground/core";
+import type { ParamValue } from "@icicle-ai/opencv-image-playground-core";
 import type { CV } from "./loader";
 import { JS_OP_MAP } from "./ops";
 

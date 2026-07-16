@@ -10,6 +10,7 @@ A browser-based OpenCV pipeline builder with two ways to run:
 
 📖 **[SETUP.md](SETUP.md)** — install, configure, run locally, and deploy.
 📖 **[HOW_TO_USE.md](HOW_TO_USE.md)** — using the editor, submitting Tapis jobs, and the container CLI.
+📖 **[doc/PUBLISHING.md](doc/PUBLISHING.md)** — building and publishing the packages to GitHub Packages.
 
 ## Architecture
 

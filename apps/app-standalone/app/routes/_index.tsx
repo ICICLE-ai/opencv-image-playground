@@ -7,7 +7,7 @@ import {
   ImagePlayground,
   localFileSource,
   type FileSource,
-} from "@opencv-image-playground/playground";
+} from "@icicle-ai/opencv-image-playground";
 import { useTapisFileSource } from "~/contexts/TapisFileSource";
 import { saveStoredPipeline } from "~/lib/pipelineStorage";
 import {

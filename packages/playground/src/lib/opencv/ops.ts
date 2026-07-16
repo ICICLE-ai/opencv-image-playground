@@ -8,7 +8,7 @@
 // result back to RGBA — mirroring the Python ops that always return BGR. Every
 // intermediate Mat is `.delete()`d to avoid leaking the WASM heap.
 
-import type { ParamValue } from "@opencv-image-playground/core";
+import type { ParamValue } from "@icicle-ai/opencv-image-playground-core";
 
 /* opencv.js typings are incomplete for the Mat manipulation API used here, so
    the cv namespace and Mat values are intentionally treated as `any`. */

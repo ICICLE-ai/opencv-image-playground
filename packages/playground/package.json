@@ -1,22 +1,31 @@
 {
-  "name": "@opencv-image-playground/playground",
-  "version": "0.0.1",
-  "private": true,
+  "name": "@icicle-ai/opencv-image-playground",
+  "version": "0.0.2",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "license": "MIT",
+  "author": "ICICLE-ai",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "files": ["dist"],
+  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsup"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@opencv-image-playground/core": "workspace:^",
+    "@icicle-ai/opencv-image-playground-core": "workspace:^",
     "@tabler/icons-react": "^3.44.0",
     "@techstark/opencv-js": "4.11.0-release.1",
     "nanoid": "^5.1.11",
-    "zod": "^3.23.0"
+    "zod": "^3.25.76"
   },
   "peerDependencies": {
     "@mantine/core": "^9.3.0",
@@ -28,6 +37,11 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3"
+  },
+    "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ICICLE-ai/opencv-image-playground.git"
   }
 }
