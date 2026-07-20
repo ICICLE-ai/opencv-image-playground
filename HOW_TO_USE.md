@@ -1,10 +1,40 @@
-# How to use
+# No-Code Image Lab (Image Pre-processing Studio)
 
-A walkthrough of the two workflows: building a pipeline in the **editor**, and
-running it at scale as a **Tapis batch job**. For install/config see
-[SETUP.md](SETUP.md).
+A browser-based OpenCV pipeline builder: build an image pre-processing
+pipeline in an interactive editor with live preview, then run it at scale as
+a Tapis batch job over every image in a folder tree — or standalone via CLI
+or container.
 
-## 1. Build a pipeline (editor)
+**Tags:** CI4AI, Visual-Analytics, Software
+
+### License
+
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+<!-- Add any other licenses you want to include. -->
+
+## References
+
+- [Tapis Jobs API](https://tapis-project.github.io/live-docs/?service=Jobs) — the HPC job submission service used for batch runs.
+- [SETUP.md](SETUP.md) — install, configuration, and deployment.
+- [packages/core/src/registry.ts](packages/core/src/registry.ts) — TypeScript operation registry (editor/CLI parity).
+- [packages/opencv-executor/opencv_executor/ops.py](packages/opencv-executor/opencv_executor/ops.py) — Python operation implementations.
+
+## Acknowledgements
+
+<!-- Please include other funding sources above this line. -->
+
+*National Science Foundation (NSF) funded AI institute for Intelligent Cyberinfrastructure with Computational Learning in the Environment (ICICLE) (OAC 2112606)*
+
+## Issue reporting
+
+Please report issues via [GitHub Issues](https://github.com/ICICLE-ai/opencv-image-playground/issues).
+
+---
+
+# Tutorials
+
+## Build a pipeline (editor)
 
 Open the app (`/`).
 
@@ -24,7 +54,35 @@ Open the app (`/`).
 
 The pipeline is remembered automatically and carried over to the `/jobs` page.
 
-### The pipeline file (`operations.json`)
+## Run as a Tapis batch job
+
+Requires Tapis to be configured (see [SETUP.md](SETUP.md)) and the
+`opencv-preprocess` app registered against a built `preprocess.sif`.
+
+### Sign in
+
+If you already have a Tapis session (an `X-Tapis-Token` cookie from another Tapis
+app), you're signed in automatically. Otherwise click the Tapis login icon in the
+editor header. Then open the **jobs** page (server icon in the header, or `/jobs`).
+
+### Submit a job
+
+![Job submission](./doc/images/job_submission.png)
+
+Fill the form — the pipeline you built in the editor is uploaded automatically as
+`operations.json` — then click **Submit job**. Behind the scenes the app uploads
+the pipeline, then POSTs to `/v3/jobs/submit` server-side (your token never
+touches the browser).
+
+When a job reaches `FINISHED`, the processed images (plus a
+`preprocess_summary.json` report) are in your **output directory** on the
+archive system.
+
+---
+
+# How-To Guides
+
+## The pipeline file (`operations.json`)
 
 ```json
 {
@@ -41,23 +99,7 @@ The pipeline is remembered automatically and carried over to the `/jobs` page.
 Disabled steps are skipped. The same file drives the editor, the CLI, and the
 Tapis job.
 
-## 2. Run as a Tapis batch job
-
-Requires Tapis to be configured (see SETUP) and the `opencv-preprocess` app
-registered against a built `preprocess.sif`.
-
-### Sign in
-
-If you already have a Tapis session (an `X-Tapis-Token` cookie from another Tapis
-app), you're signed in automatically. Otherwise click the Tapis login icon in the
-editor header. Then open the **jobs** page (server icon in the header, or `/jobs`).
-
-### Submit a job
-
-![Job submission](./doc/images/job_submission.png)
-
-Fill the form — the pipeline you built in the editor is uploaded automatically as
-`operations.json`:
+## Configure a batch job submission
 
 | Field | Meaning |
 | --- | --- |
@@ -71,9 +113,6 @@ Fill the form — the pipeline you built in the editor is uploaded automatically
 | **Allocation account (SLURM)** | Passed as `-A <account>`. |
 | **Nodes / Cores / Mem / Minutes** | Compute limits. |
 
-Click **Submit job**. Behind the scenes the app uploads the pipeline, then POSTs
-to `/v3/jobs/submit` server-side (your token never touches the browser).
-
 #### System-specific behaviour
 
 The **exec system** you pick changes how the job is submitted:
@@ -83,7 +122,7 @@ The **exec system** you pick changes how the job is submitted:
 | OSC (`pitzer` / `cardinal` / `ascend`) | `cpu` | `/fs/scratch/<account>/harvest_jobs/${JobUUID}` |
 | Expanse (`expanse-*`) | `tapisShared` | app defaults (no scratch override) |
 
-### Monitor, search, cancel
+## Monitor, search, cancel jobs
 
 The **Your jobs** table lists your `opencv-preprocess` jobs with live status
 badges (auto-refreshes while any job is active). You can:
@@ -92,11 +131,7 @@ badges (auto-refreshes while any job is active). You can:
 - **Filter** by status.
 - **Cancel** a running/queued job with the ✕ button.
 
-When a job reaches `FINISHED`, the processed images (plus a
-`preprocess_summary.json` report) are in your **output directory** on the archive
-system.
-
-## 3. Run the pipeline without the app (CLI / container)
+## Run the pipeline without the app (CLI / container)
 
 The same processing engine runs standalone — handy for local batches or scripts.
 
@@ -133,6 +168,10 @@ apptainer run \
 
 Config can also come from env vars: `INPUT_DIR`, `OUTPUT_DIR`, `PIPELINE_FILE`,
 `IMAGE_EXTENSIONS`.
+
+---
+
+# Explanation
 
 ## Available operations
 

@@ -21,9 +21,13 @@ COPY packages/core/        ./packages/core/
 COPY packages/playground/  ./packages/playground/
 COPY apps/app-standalone/  ./apps/app-standalone/
 
-# Build the Remix app
-WORKDIR /repo/apps/app-standalone
-RUN pnpm build
+# Build workspace deps first (core → playground), then the app. Their dist/ must
+# exist before app-standalone's `import "@icicle-ai/opencv-image-playground"` can
+# resolve — its exports map points at ./dist/index.js.
+WORKDIR /repo
+RUN pnpm --filter @icicle-ai/opencv-image-playground-core build \
+ && pnpm --filter @icicle-ai/opencv-image-playground build \
+ && pnpm --filter app-standalone build
 
 # ─── Stage 2: Runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -45,11 +49,12 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/app-standalone/build \
      ./apps/app-standalone/build
 
-# Copy workspace package sources (consumed as TS source, main: ./src/index.ts)
-COPY --from=builder /repo/packages/core/src \
-     ./packages/core/src
-COPY --from=builder /repo/packages/playground/src \
-     ./packages/playground/src
+# Copy workspace package build output (main: ./dist/index.js) so the server
+# bundle can resolve the @icicle-ai/* packages at runtime.
+COPY --from=builder /repo/packages/core/dist \
+     ./packages/core/dist
+COPY --from=builder /repo/packages/playground/dist \
+     ./packages/playground/dist
 
 WORKDIR /repo/apps/app-standalone
 

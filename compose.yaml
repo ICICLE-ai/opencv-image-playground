@@ -1,0 +1,16 @@
+- id: NoCodeImageLab:1.0.0
+  name: No-Code Image Lab
+  owner: Hari Subramoni
+  primaryThrust: core/CI4AI
+  targetIcicleRelease: 2026-07
+  hasDependentComponents:
+    - related_to: icicleai-tapisui-extension:0.1.0
+      relationship_type: DependsOn
+  componentVersion: 0.1.0
+  publicAccess: true
+  usageDocumentationAvailable: true
+  usageDocumentationUrl: https://icicle-ai.github.io/training-catalog/docs/category/no-code-image-lab
+  developerDocumentationAvailable: false
+  trainingTutorialsAvailable: true 
+  trainingTutorialsUrl: https://icicle-ai.github.io/training-catalog/docs/category/no-code-image-lab
+  status: AlphaRelease
