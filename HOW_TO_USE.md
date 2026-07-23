@@ -36,7 +36,7 @@ Please report issues via [GitHub Issues](https://github.com/ICICLE-ai/opencv-ima
 
 ## Build a pipeline (editor)
 
-Open the app (`/`).
+[Open the app](https://icicleai.tapis.io/#/no-code-image-lab).
 
 ![Dashboard](./doc/images/entry_page.png)
 
