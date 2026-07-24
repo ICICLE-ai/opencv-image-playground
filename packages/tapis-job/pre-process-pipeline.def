@@ -26,15 +26,18 @@ From: python:3.12-slim
     # Paths are relative to the build context (the repo root — see BUILD above).
     packages/opencv-executor /opt/build/opencv-executor
     packages/tapis-job/preprocess.py /opt/app/preprocess.py
+    packages/tapis-job/metadata_utils.py /opt/app/metadata_utils.py
 
 %post
     set -eu
 
     # opencv-python-headless still needs a couple of shared libs at runtime.
+    # exiftool (for metadata preservation) is a separate system package.
     apt-get update
     apt-get install -y --no-install-recommends \
         libglib2.0-0 \
-        libgomp1
+        libgomp1 \
+        libimage-exiftool-perl
     rm -rf /var/lib/apt/lists/*
 
     python -m pip install --no-cache-dir --upgrade pip
