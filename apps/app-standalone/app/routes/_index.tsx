@@ -8,8 +8,9 @@ import {
   localFileSource,
   type FileSource,
 } from "@icicle-ai/opencv-image-playground";
+import type { Pipeline } from "@icicle-ai/opencv-image-playground-core";
 import { useTapisFileSource } from "~/contexts/TapisFileSource";
-import { saveStoredPipeline } from "~/lib/pipelineStorage";
+import { saveStoredPipeline, loadStoredPipeline } from "~/lib/pipelineStorage";
 import {
   getTapisToken,
   getTapisUsername,
@@ -128,6 +129,7 @@ export default function Index() {
     <ImagePlayground
       fileSources={fileSources}
       headerActions={headerActions}
+      restorePipeline={() => loadStoredPipeline<Pipeline>()}
       onPipelineChange={saveStoredPipeline}
     />
   );

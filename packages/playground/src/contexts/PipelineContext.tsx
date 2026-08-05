@@ -156,10 +156,15 @@ const PipelineContext = createContext<PipelineContextValue | null>(null);
 export function PipelineProvider({
   children,
   initialPipeline,
+  restorePipeline,
   onChange,
 }: {
   children: ReactNode;
   initialPipeline?: Pipeline;
+  /** Client-only lookup (e.g. localStorage) for a previously saved pipeline,
+   *  applied once after mount so it never runs during SSR and can't cause a
+   *  hydration mismatch. Ignored if `initialPipeline` is given. */
+  restorePipeline?: () => Pipeline | null | undefined;
   onChange?: (pipeline: Pipeline) => void;
 }) {
   const [state, dispatch] = useReducer(reducer, undefined, () => ({
@@ -167,6 +172,14 @@ export function PipelineProvider({
     selectedStepId: null,
     isDirty: false,
   }));
+
+  const hasRestored = useRef(false);
+  useEffect(() => {
+    if (hasRestored.current || initialPipeline) return;
+    hasRestored.current = true;
+    const restored = restorePipeline?.();
+    if (restored) dispatch({ type: "LOAD_PIPELINE", pipeline: restored });
+  }, [initialPipeline, restorePipeline]);
 
   // Notify the host whenever the pipeline itself changes (skip the first render).
   const isFirst = useRef(true);

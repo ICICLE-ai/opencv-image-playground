@@ -32,6 +32,9 @@ export interface ImagePlaygroundProps {
   title?: string;
   /** Pipeline to start from. */
   initialPipeline?: Pipeline;
+  /** Client-only lookup for a previously saved pipeline (e.g. localStorage),
+   *  applied once after mount. Ignored if `initialPipeline` is given. */
+  restorePipeline?: () => Pipeline | null | undefined;
   /** Called whenever the pipeline changes. */
   onPipelineChange?: (pipeline: Pipeline) => void;
 }
@@ -178,12 +181,17 @@ export function ImagePlayground({
   headerActions,
   title = "cv-gui",
   initialPipeline,
+  restorePipeline,
   onPipelineChange,
 }: ImagePlaygroundProps) {
   const sources = fileSources && fileSources.length > 0 ? fileSources : [localFileSource];
 
   return (
-    <PipelineProvider initialPipeline={initialPipeline} onChange={onPipelineChange}>
+    <PipelineProvider
+      initialPipeline={initialPipeline}
+      restorePipeline={restorePipeline}
+      onChange={onPipelineChange}
+    >
       <PlaygroundInner
         fileSources={sources}
         headerActions={headerActions}

@@ -3,6 +3,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { usePipeline } from "../contexts/PipelineContext";
 import { loadOpenCV } from "./opencv/loader";
 import { runPipeline, type RunStep, type StepResult } from "./opencv/runner";
+import { saveStoredImage, loadStoredImage } from "./imageStorage";
 
 export type { StepResult };
 
@@ -70,7 +71,7 @@ export function useImageProcessor() {
   const lastGood = [...results].reverse().find((r) => r.ok && r.dataUrl);
   const processedUrl = lastGood?.dataUrl ?? null;
 
-  const handleFileChange = useCallback(async (file: File, url: string) => {
+  const applyFile = useCallback(async (file: File, url: string) => {
     setCurrentFile(file);
     setOriginalUrl(url);
     setResults([]);
@@ -81,6 +82,25 @@ export function useImageProcessor() {
       setImageData(null);
     }
   }, []);
+
+  const handleFileChange = useCallback(async (file: File, url: string) => {
+    await applyFile(file, url);
+    saveStoredImage(file);
+  }, [applyFile]);
+
+  // Restore the last-loaded image (if any) once, after mount — so it
+  // survives a page reload or a trip to another route (e.g. /jobs).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const file = await loadStoredImage();
+      if (!file || cancelled) return;
+      await applyFile(file, URL.createObjectURL(file));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyFile]);
 
   return {
     currentFile,
