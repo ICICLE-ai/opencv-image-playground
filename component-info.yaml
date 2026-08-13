@@ -1,0 +1,23 @@
+# ICICLE component metadata for opencv-image-playground (No-Code Image Lab).
+# Place this file at the ROOT of the ICICLE-ai/opencv-image-playground repo as
+# `component-info.yaml` (it currently exists there, misnamed, as `compose.yaml`).
+
+- id: "NoCodeImageLab:0.1.0"
+  owner: "Hari Subramoni"
+  primaryThrust: "core/CI4AI"
+  name: "No-Code Image Lab"
+  status: "AlphaRelease"
+  description: "A browser-based OpenCV pipeline builder: build an image pre-processing pipeline in an interactive editor with live preview, then run it at scale as a Tapis batch job over every image in a folder tree — or standalone via CLI or container."
+  componentVersion: "0.1.0"
+  targetIcicleRelease: "2026-07A"
+  hasDependentComponents:
+    - related_to: "icicleai-tapisui-extension:0.1.0"
+      relationship_type: "DependsOn"
+  licenseUrl: "https://github.com/ICICLE-ai/opencv-image-playground?tab=MIT-1-ov-file"
+  publicAccess: true
+  sourceCodeUrl: "https://github.com/ICICLE-ai/opencv-image-playground"
+  codeReviewConducted: false
+  testsWritten: false
+  developerDocumentationAvailable: false
+  trainingTutorialsAvailable: true
+  trainingTutorialsUrl: "https://icicle-ai.github.io/training-catalog/docs/category/no-code-image-lab"
