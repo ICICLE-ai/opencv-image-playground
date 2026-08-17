@@ -1,0 +1,85 @@
+name: Build
+
+# Runs on pull requests only. The default activity types (opened, synchronize,
+# reopened) cover both opening a pull request and pushing follow-up commits to
+# it. No `branches` filter, so pull requests into long-lived branches other than
+# main are built too.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Build workspace (node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # engines.node is ">=20.0.0" and both Dockerfile stages use
+          # node:20-alpine, so build against the same major CI-side.
+          node-version: "20"
+
+      # corepack ships with Node and reads the root package.json
+      # "packageManager": "pnpm@9.0.0" field, so the pnpm version is pinned by
+      # the repository rather than by a third-party action.
+      - name: Enable corepack
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          corepack enable
+          pnpm --version
+
+      # --frozen-lockfile fails if pnpm-lock.yaml disagrees with any manifest,
+      # which is the check that matters on a pull request.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # turbo resolves the dependency order from tasks.build.dependsOn ["^build"]:
+      # core -> playground -> app-standalone. The app cannot resolve its
+      # workspace imports until the two packages have emitted dist/.
+      - name: Build
+        run: pnpm build
+
+      # Deliberately not `turbo run typecheck`: turbo.json only declares the
+      # `build` and `dev` tasks, so turbo exits with "Could not find task
+      # `typecheck` in project". pnpm runs the per-package scripts directly.
+      # Must follow Build, because the typecheck of playground and
+      # app-standalone resolves types out of packages/core/dist.
+      - name: Typecheck
+        run: pnpm -r run typecheck
+
+  python:
+    name: Build packages (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Both pyproject.toml files declare requires-python ">=3.11" and the
+          # bridge image is python:3.11-slim.
+          python-version: "3.11"
+
+      - name: Build and import opencv-executor
+        working-directory: packages/opencv-executor
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          python -c "import opencv_executor, opencv_executor.cli"
+          opencv-executor --help > /dev/null
+
+      # main.py is a top-level module rather than a package, so it imports from
+      # the working directory once the dependencies are installed.
+      - name: Build and import python-bridge
+        working-directory: packages/python-bridge
+        run: |
+          pip install .
+          python -c "import main"
