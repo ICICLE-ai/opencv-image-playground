@@ -38,18 +38,18 @@ Please report issues via [GitHub Issues](https://github.com/ICICLE-ai/opencv-ima
 
 [Open the app](https://icicleai.tapis.io/#/no-code-image-lab).
 
-![Dashboard](./doc/images/entry_page.png)
+![Dashboard](./docs/images/entry_page.png)
 
 1. **Open an image** — click *Open image* (local file, or the Tapis file browser
    once signed in).
-   ![File explorer](./doc/images/file_explorer.png)
+   ![File explorer](./docs/images/file_explorer.png)
 2. **Add operations** — from the left panel, click ops to append them. They're
    grouped and colour-coded by category (filter, edge, threshold, morphology,
    colour, geometry, denoise).
 3. **Tune & reorder** — expand a step to edit its parameters; drag the handle to
    reorder; toggle a step off to skip it. The right pane shows *Original* vs
    *Processed* live (zoom/pan supported).
-   ![pipeline](./doc/images/pipeline.png)
+   ![pipeline](./docs/images/pipeline.png)
 4. **Save / load** — the header ⭱/⭳ icons import and export `operations.json`.
 
 The pipeline is remembered automatically and carried over to the `/jobs` page.
@@ -67,7 +67,7 @@ editor header. Then open the **jobs** page (server icon in the header, or `/jobs
 
 ### Submit a job
 
-![Job submission](./doc/images/job_submission.png)
+![Job submission](./docs/images/job_submission.png)
 
 Fill the form — the pipeline you built in the editor is uploaded automatically as
 `operations.json` — then click **Submit job**. Behind the scenes the app uploads
