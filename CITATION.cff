@@ -8,6 +8,9 @@ authors:
   - family-names: "Subramoni"
     given-names: "Hari"
     email: "subramoni.1@osu.edu"
+  - family-names: "Nanda"
+    given-names: "Brijesh"
+    email: "brijeshnandaby@gmail.com"
 repository-code: "https://github.com/ICICLE-ai/opencv-image-playground"
 keywords:
   - "open source"

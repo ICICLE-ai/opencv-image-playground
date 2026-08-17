@@ -1,0 +1,27 @@
+title = "opencv-image-playground gitleaks config"
+
+# Keep the full upstream ruleset; this file only adds a narrow allowlist.
+[extend]
+useDefault = true
+
+# Historical leak, already remediated.
+#
+# Commit d9ad72aa committed a real TAPIS_CLIENT_KEY and APP_SECRET into
+# k8s/deployment.yaml. Both credentials have been rotated, so the values still
+# present in history are dead. HEAD no longer contains them — the manifest now
+# documents provisioning `cv-gui-secret` out of band instead.
+#
+# History is deliberately not rewritten: the commit is already published on
+# every origin/* branch and remains reachable through the merged pull request's
+# refs, so a force-push would not retract it and would break every clone.
+#
+# condition = "AND" is required. The default is "OR", which would allowlist the
+# entire commit and every future finding in k8s/deployment.yaml. With "AND" a
+# finding must match the commit, the path, and the rule to be ignored, so any
+# new secret — including one added to this same file — still fails the scan.
+[[allowlists]]
+description = "Rotated TAPIS_CLIENT_KEY and APP_SECRET in k8s/deployment.yaml (commit d9ad72aa)"
+condition = "AND"
+targetRules = ["generic-api-key"]
+commits = ["d9ad72aade25b38cb4df540d7564ccf8d03c8b24"]
+paths = ['''^k8s/deployment\.yaml$''']

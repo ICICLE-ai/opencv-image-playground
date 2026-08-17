@@ -13,6 +13,10 @@ Describe the user or maintainer problem addressed by this pull request. Link the
 - [ ] I exercised the changed example, workflow, configuration, or interface.
 - [ ] I updated user and developer documentation where needed.
 
+## Screenshots
+
+Attach screenshots or a short screen recording for any user-visible change. Delete this section if the change has no user-visible effect.
+
 ## Contribution readiness
 
 - [ ] I identified new or changed dependencies.
