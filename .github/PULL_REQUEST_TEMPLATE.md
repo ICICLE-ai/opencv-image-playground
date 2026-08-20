@@ -8,9 +8,14 @@ Describe the user or maintainer problem addressed by this pull request. Link the
 
 ## Validation performed
 
-- [ ] I ran the relevant existing tests or documented why they could not be run.
-- [ ] I added or updated a test when practical.
-- [ ] I exercised the changed example, workflow, configuration, or interface.
+See [docs/TESTING.md](../docs/TESTING.md). Unit tests are not required yet — the user test document takes their place.
+
+- [ ] I ran the local pre-submit checks: `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm -r run typecheck`.
+- [ ] I ran the Python install-and-import checks, or my change does not touch a Python package.
+- [ ] I committed the updated `pnpm-lock.yaml`, or I changed no dependencies.
+- [ ] I exercised the changed example, workflow, configuration, or interface myself.
+- [ ] I committed a user test document under `docs/user-tests/` — link it here — or this change needs none because: <reason>
+- [ ] I verified deployment with `docker compose -f docker-compose.yaml up --build`, or this change does not touch the build, containers, `k8s/`, or environment variables.
 - [ ] I updated user and developer documentation where needed.
 
 ## Screenshots
@@ -28,3 +33,5 @@ Attach screenshots or a short screen recording for any user-visible change. Dele
 ## Reviewer notes
 
 Describe any limitations, follow-up work, compatibility concerns, or release notes needed.
+
+State any known verification gaps — paths you could not exercise, environments you could not reach.
