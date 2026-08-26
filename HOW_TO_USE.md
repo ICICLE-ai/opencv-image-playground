@@ -9,7 +9,7 @@ or container.
 
 ### License
 
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+BSD 3-Clause License
 
 <!-- Add any other licenses you want to include. -->
 
