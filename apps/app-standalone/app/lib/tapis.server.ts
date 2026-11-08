@@ -610,6 +610,8 @@ export interface SubmitJobInput {
    memoryMB: number;
    maxMinutes: number;
    imageExtensions?: string;
+   /** Also copy non-image files unchanged into the output directory. */
+   copyNonImages?: boolean;
    /** SLURM allocation account, passed as a scheduler option (--account=...). */
    allocationAccount?: string;
    /** The exported pipeline JSON to stage as operations.json. */
@@ -659,6 +661,9 @@ export async function submitTapisJob(
       { name: "input-dir", arg: "--input input" },
       { name: "output-dir", arg: "--output output" },
       { name: "pipeline", arg: "--pipeline operations.json" },
+      ...(input.copyNonImages
+         ? [{ name: "copy-non-images", arg: "--copy-non-images" }]
+         : []),
    ];
 
    // System-specific execution: queue + whether to override the working dirs.

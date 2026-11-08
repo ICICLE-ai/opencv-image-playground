@@ -53,6 +53,12 @@
           "value": ".jpg,.jpeg,.png,.bmp,.tiff,.tif",
           "description": "Comma-separated image extensions to process.",
           "inputMode": "INCLUDE_ON_DEMAND"
+        },
+        {
+          "key": "COPY_NON_IMAGES",
+          "value": "false",
+          "description": "Set to true to copy non-image files unchanged into the output directory.",
+          "inputMode": "INCLUDE_ON_DEMAND"
         }
       ],
       "schedulerOptions": [],
