@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import {
   AppShell, Group, Text, ActionIcon,
   Tooltip, Badge, Box, ThemeIcon,
@@ -32,8 +32,31 @@ export interface ImagePlaygroundProps {
   title?: string;
   /** Pipeline to start from. */
   initialPipeline?: Pipeline;
+  /** Client-only lookup for a previously saved pipeline (e.g. localStorage),
+   *  applied once after mount. Ignored if `initialPipeline` is given. */
+  restorePipeline?: () => Pipeline | null | undefined;
   /** Called whenever the pipeline changes. */
   onPipelineChange?: (pipeline: Pipeline) => void;
+}
+
+// Remembers which file source the user last picked, so it survives navigating
+// away and back (or a reload).
+const ACTIVE_SOURCE_KEY = "oimp.activeFileSource";
+
+function loadActiveSourceId(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_SOURCE_KEY);
+  } catch {
+    return null; // unavailable (SSR, private mode)
+  }
+}
+
+function saveActiveSourceId(id: string): void {
+  try {
+    localStorage.setItem(ACTIVE_SOURCE_KEY, id);
+  } catch {
+    // non-fatal
+  }
 }
 
 // ─── Inner — owns layout, file source switching, and the image processor ──────
@@ -49,7 +72,25 @@ function PlaygroundInner({
 }) {
   const { state, markClean, loadPipeline } = usePipeline();
   const [asideOpen, setAsideOpen] = useState(true);
-  const [activeSourceId, setActiveSourceId] = useState(fileSources[0].id);
+  const [activeSourceId, setActiveSourceIdState] = useState(fileSources[0].id);
+
+  const setActiveSourceId = useCallback((id: string) => {
+    setActiveSourceIdState(id);
+    saveActiveSourceId(id);
+  }, []);
+
+  // Restore the saved source after mount (client-only, so SSR markup matches).
+  // Re-checked when the source list changes, in case the saved source (e.g.
+  // Tapis) only becomes available after the first render.
+  const sourceRestored = useRef(false);
+  useEffect(() => {
+    if (sourceRestored.current) return;
+    const saved = loadActiveSourceId();
+    if (saved && fileSources.some((s) => s.id === saved)) {
+      setActiveSourceIdState(saved);
+      sourceRestored.current = true;
+    }
+  }, [fileSources]);
 
   const activeSource =
     fileSources.find((s) => s.id === activeSourceId) ?? fileSources[0];
@@ -178,12 +219,17 @@ export function ImagePlayground({
   headerActions,
   title = "cv-gui",
   initialPipeline,
+  restorePipeline,
   onPipelineChange,
 }: ImagePlaygroundProps) {
   const sources = fileSources && fileSources.length > 0 ? fileSources : [localFileSource];
 
   return (
-    <PipelineProvider initialPipeline={initialPipeline} onChange={onPipelineChange}>
+    <PipelineProvider
+      initialPipeline={initialPipeline}
+      restorePipeline={restorePipeline}
+      onChange={onPipelineChange}
+    >
       <PlaygroundInner
         fileSources={sources}
         headerActions={headerActions}
