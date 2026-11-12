@@ -5,6 +5,7 @@ Core pipeline loading and execution logic.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -133,6 +134,7 @@ def batch_run_recursive(
     pipeline: dict[str, Any],
     extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"),
     on_progress: callable | None = None,
+    copy_non_images: bool = False,
 ) -> dict[str, Any]:
     """
     Apply a pipeline to every image found anywhere under input_dir — walking
@@ -146,15 +148,20 @@ def batch_run_recursive(
 
     on_progress, if provided, is called as on_progress(current_index, total,
     relative_path) after each file — useful for logging or a progress bar.
+
+    If copy_non_images is True, every file whose extension is NOT in
+    extensions is copied unchanged (metadata preserved) to its mirrored
+    location under output_dir, so the output is a complete copy of the input
+    tree with the images processed. Copy results are reported under the
+    'copied', 'copy_failed' and 'copy_failed_details' summary keys.
     """
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(
-        f for f in input_dir.rglob("*")
-        if f.is_file() and f.suffix.lower() in extensions
-    )
+    all_files = sorted(f for f in input_dir.rglob("*") if f.is_file())
+    files = [f for f in all_files if f.suffix.lower() in extensions]
+    other_files = [f for f in all_files if f.suffix.lower() not in extensions]
 
     succeeded: list[str] = []
     failed: list[dict[str, str]] = []
@@ -171,9 +178,28 @@ def batch_run_recursive(
         if on_progress:
             on_progress(i + 1, len(files), str(rel))
 
-    return {
+    summary: dict[str, Any] = {
         "total": len(files),
         "succeeded": len(succeeded),
         "failed": len(failed),
         "failed_details": failed,
+        "copy_non_images": copy_non_images,
     }
+
+    if copy_non_images:
+        copied: list[str] = []
+        copy_failed: list[dict[str, str]] = []
+        for file in other_files:
+            rel = file.relative_to(input_dir)
+            dest = output_dir / rel
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file, dest)
+                copied.append(str(rel))
+            except OSError as e:
+                copy_failed.append({"file": str(rel), "error": str(e)})
+        summary["copied"] = len(copied)
+        summary["copy_failed"] = len(copy_failed)
+        summary["copy_failed_details"] = copy_failed
+
+    return summary

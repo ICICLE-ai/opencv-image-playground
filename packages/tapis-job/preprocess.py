@@ -20,6 +20,12 @@ Configuration is read from CLI arguments first, then from environment variables
     --extensions / IMAGE_EXTENSIONS
                                Comma-separated list of file extensions to treat
                                as images. Defaults to the common raster formats.
+    --copy-non-images / COPY_NON_IMAGES
+                               Also copy every non-image file (anything not
+                               matching --extensions) unchanged into the output
+                               directory, preserving the folder structure.
+                               Off by default. The env var accepts
+                               1/true/yes/on.
 
 On completion a ``preprocess_summary.json`` report is written into the output
 directory. The process exits:
@@ -72,6 +78,10 @@ def _parse_extensions(raw: str | None) -> tuple[str, ...]:
     return tuple(exts) if exts else DEFAULT_EXTENSIONS
 
 
+def _parse_bool(raw: str | None) -> bool:
+    return bool(raw) and raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 def parse_config(argv: list[str] | None = None) -> dict:
     parser = argparse.ArgumentParser(
         prog="preprocess",
@@ -85,12 +95,16 @@ def parse_config(argv: list[str] | None = None) -> dict:
                                            "Falls back to $PIPELINE_FILE.")
     parser.add_argument("--extensions", help="Comma-separated image extensions. "
                                              "Falls back to $IMAGE_EXTENSIONS.")
+    parser.add_argument("--copy-non-images", action="store_true",
+                        help="Also copy non-image files unchanged to the output "
+                             "directory. Falls back to $COPY_NON_IMAGES.")
     args = parser.parse_args(argv)
 
     input_dir = _resolve(args.input, "INPUT_DIR")
     output_dir = _resolve(args.output, "OUTPUT_DIR")
     pipeline_file = _resolve(args.pipeline, "PIPELINE_FILE")
     extensions = _parse_extensions(_resolve(args.extensions, "IMAGE_EXTENSIONS"))
+    copy_non_images = args.copy_non_images or _parse_bool(os.environ.get("COPY_NON_IMAGES"))
 
     missing = [
         name
@@ -109,6 +123,7 @@ def parse_config(argv: list[str] | None = None) -> dict:
         "output_dir": Path(output_dir),
         "pipeline_file": Path(pipeline_file),
         "extensions": extensions,
+        "copy_non_images": copy_non_images,
     }
 
 
@@ -125,11 +140,13 @@ def main(argv: list[str] | None = None) -> int:
     output_dir: Path = cfg["output_dir"]
     pipeline_file: Path = cfg["pipeline_file"]
     extensions: tuple[str, ...] = cfg["extensions"]
+    copy_non_images: bool = cfg["copy_non_images"]
 
     _log(f"input     : {input_dir}")
     _log(f"output    : {output_dir}")
     _log(f"pipeline  : {pipeline_file}")
     _log(f"extensions: {', '.join(extensions)}")
+    _log(f"copy non-images: {'yes' if copy_non_images else 'no'}")
 
     if not input_dir.is_dir():
         _log(f"FATAL: input directory does not exist: {input_dir}")
@@ -157,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             pipeline,
             extensions=extensions,
             on_progress=on_progress,
+            copy_non_images=copy_non_images,
         )
     except Exception as e:  # defensive — batch_run_recursive shouldn't raise per-file
         _log(f"FATAL: unexpected error during batch run: {e}")
@@ -184,13 +202,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     for failure in summary["failed_details"]:
         _log(f"  FAILED {failure['file']}: {failure['error']}")
+    if copy_non_images:
+        _log(f"copied {summary['copied']} non-image file(s), "
+             f"{summary['copy_failed']} copy failure(s)")
+        for failure in summary["copy_failed_details"]:
+            _log(f"  COPY FAILED {failure['file']}: {failure['error']}")
 
     if summary["total"] == 0:
         _log("no matching images found — nothing to do")
-        return EXIT_OK
+        return EXIT_PARTIAL if summary.get("copy_failed") else EXIT_OK
     if summary["failed"] and summary["succeeded"] == 0:
         return EXIT_FATAL
-    if summary["failed"]:
+    if summary["failed"] or summary.get("copy_failed"):
         return EXIT_PARTIAL
     return EXIT_OK
 

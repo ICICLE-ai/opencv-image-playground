@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Modal, Stack, Text, Button, Group,
   Breadcrumbs, Anchor, LoadingOverlay,
@@ -25,6 +25,29 @@ interface TapisSystem {
   label: string;
 }
 
+// Last browsed system + folder, so the browser reopens where the user left off.
+const BROWSER_STATE_KEY = "oimp.tapisBrowser";
+
+function loadBrowserState(): { systemId: string; path: string } | null {
+  try {
+    const raw = localStorage.getItem(BROWSER_STATE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed.systemId === "string" && typeof parsed.path === "string"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBrowserState(systemId: string, path: string): void {
+  try {
+    localStorage.setItem(BROWSER_STATE_KEY, JSON.stringify({ systemId, path }));
+  } catch {
+    // non-fatal
+  }
+}
+
 // Image extensions we accept
 const IMAGE_EXTS = /\.(jpg|jpeg|png|bmp|tiff|tif|webp|gif)$/i;
 
@@ -49,6 +72,18 @@ export function useTapisFileSource({ defaultSystemId = "", systems = [] }: Props
 
   // Holds the resolve function of the current pickFile() Promise
   const resolveRef = useRef<((f: File | null) => void) | null>(null);
+
+  // Restore the last browsed location after mount (client-only).
+  useEffect(() => {
+    const saved = loadBrowserState();
+    if (!saved) return;
+    if (systems.length > 0 && !systems.some((s) => s.id === saved.systemId)) return;
+    setSystemId(saved.systemId);
+    setCurrentPath(saved.path);
+    setManualPath(saved.path);
+    // Only on mount — later changes are saved as the user browses.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Load files ─────────────────────────────────────────────────────────────
   const loadFiles = useCallback(async (sysId: string, path: string) => {
@@ -85,6 +120,7 @@ export function useTapisFileSource({ defaultSystemId = "", systems = [] }: Props
       setFiles(items);
       setCurrentPath(normPath);
       setManualPath(normPath);
+      saveBrowserState(sysId, normPath);
     } catch (err) {
       setError(String(err));
       setFiles([]);

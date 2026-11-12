@@ -74,6 +74,8 @@ Fill the form — the pipeline you built in the editor is uploaded automatically
 the pipeline, then POSTs to `/v3/jobs/submit` server-side (your token never
 touches the browser).
 
+By default the job only copies over the processed image files. Check the box (Copy non-image files to the output directory) if other files are required to be copied to the output folder.
+
 When a job reaches `FINISHED`, the processed images (plus a
 `preprocess_summary.json` report) are in your **output directory** on the
 archive system.
@@ -167,7 +169,8 @@ apptainer run \
 ```
 
 Config can also come from env vars: `INPUT_DIR`, `OUTPUT_DIR`, `PIPELINE_FILE`,
-`IMAGE_EXTENSIONS`.
+`IMAGE_EXTENSIONS`, `COPY_NON_IMAGES` (or pass `--copy-non-images` to also copy
+non-image files unchanged into the output).
 
 ---
 

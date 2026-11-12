@@ -33,6 +33,7 @@ app can supply values as `appArgs` **or** `envVariables`):
 | `--output` | `OUTPUT_DIR` | Directory to write processed images into. **Required.** |
 | `--pipeline` | `PIPELINE_FILE` | Path to `operations.json`. **Required.** |
 | `--extensions` | `IMAGE_EXTENSIONS` | Comma-separated extensions. Default: `.jpg,.jpeg,.png,.bmp,.tiff,.tif` |
+| `--copy-non-images` | `COPY_NON_IMAGES` | Also copy non-image files unchanged into the output (folder structure kept). Off by default; env accepts `1`/`true`/`yes`/`on`. |
 
 A `preprocess_summary.json` report is written into the output directory. Exit
 codes: `0` all succeeded (or nothing to do), `2` partial success, `1` fatal /

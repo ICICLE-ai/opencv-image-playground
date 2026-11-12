@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Container, Title, Text, Paper, Grid, TextInput, NumberInput, Button,
   Table, Badge, Group, Stack, Alert, Code, Anchor, Divider, Tooltip,
-  ActionIcon, ScrollArea, Select, ThemeIcon, Center,
+  ActionIcon, ScrollArea, Select, ThemeIcon, Center, Checkbox,
 } from "@mantine/core";
 import {
   IconArrowLeft, IconRefresh, IconX, IconAlertCircle, IconCheck,
@@ -99,6 +99,7 @@ export async function action({ request }: ActionFunctionArgs) {
         memoryMB: num("memoryMB", 4096),
         maxMinutes: num("maxMinutes", 120),
         imageExtensions: String(form.get("imageExtensions") ?? ""),
+        copyNonImages: form.get("copyNonImages") === "on",
         allocationAccount: String(form.get("allocationAccount") ?? ""),
         pipelineJson,
       });
@@ -305,6 +306,13 @@ export default function JobsPage() {
                   name="imageExtensions" label="Image extensions"
                   placeholder=".jpg,.jpeg,.png,.bmp,.tiff,.tif"
                   description="Optional — leave blank for defaults"
+                />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Checkbox
+                  name="copyNonImages"
+                  label="Copy non-image files to the output directory"
+                  description="Files that don't match the image extensions are copied unchanged, keeping the folder structure"
                 />
               </Grid.Col>
             </Grid>
