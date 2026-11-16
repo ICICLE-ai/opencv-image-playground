@@ -13,7 +13,7 @@
   hasDependentComponents:
     - related_to: "icicleai-tapisui-extension:0.1.0"
       relationship_type: "DependsOn"
-  licenseUrl: "https://github.com/ICICLE-ai/opencv-image-playground?tab=MIT-1-ov-file"
+  licenseUrl: "https://github.com/ICICLE-ai/opencv-image-playground?tab=BSD-3-Clause-1-ov-file"
   publicAccess: true
   sourceCodeUrl: "https://github.com/ICICLE-ai/opencv-image-playground"
   codeReviewConducted: false
